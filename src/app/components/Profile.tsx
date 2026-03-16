@@ -21,7 +21,11 @@ export const Profile = () => {
   };
 
   const handleDeleteAccount = () => {
-    if (confirm("Are you sure you want to delete your account? This action is irreversible!")) {
+    if (
+      confirm(
+        "Are you sure you want to delete your account? This action is irreversible!",
+      )
+    ) {
       toast.success("Account deleted");
       navigate("/auth");
     }
@@ -40,7 +44,10 @@ export const Profile = () => {
             </div>
             <span className="font-medium">Back</span>
           </button>
-          <h1 className="text-3xl text-gray-900" style={{ fontFamily: 'var(--font-serif)' }}>
+          <h1
+            className="text-3xl text-gray-900"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             Bounty Biter
           </h1>
           <div className="w-12 h-12"></div>
@@ -55,19 +62,23 @@ export const Profile = () => {
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                JACOB <Lock className="inline w-5 h-5 text-gray-600" />
+                {user.name} <Lock className="inline w-5 h-5 text-gray-600" />
               </h2>
-              <p className="text-gray-600">@jacobian</p>
+              <p className="text-gray-600">{user.username}</p>
             </div>
           </div>
 
           <div className="space-y-4">
             <div className="relative">
-              <label className="text-sm text-gray-600 mb-1 block">Display Name</label>
+              <label className="text-sm text-gray-600 mb-1 block">
+                Display Name
+              </label>
               <input
                 type="text"
                 value={formData.displayName}
-                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, displayName: e.target.value })
+                }
                 className="w-full px-4 py-3 bg-green-100 rounded-lg border-2 border-transparent focus:border-green-300 outline-none transition-all"
               />
               <button
@@ -84,7 +95,9 @@ export const Profile = () => {
               <input
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
                 className="w-full px-4 py-3 bg-green-100 rounded-lg border-2 border-transparent focus:border-green-300 outline-none transition-all"
               />
               <button
@@ -97,11 +110,15 @@ export const Profile = () => {
             </div>
 
             <div className="relative">
-              <label className="text-sm text-gray-600 mb-1 block">Change Password</label>
+              <label className="text-sm text-gray-600 mb-1 block">
+                Change Password
+              </label>
               <input
                 type="password"
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
                 className="w-full px-4 py-3 bg-green-100 rounded-lg border-2 border-transparent focus:border-green-300 outline-none transition-all"
                 placeholder="New password"
               />
@@ -115,17 +132,23 @@ export const Profile = () => {
             </div>
 
             <div className="relative">
-              <label className="text-sm text-gray-600 mb-1 block">Confirm New Password</label>
+              <label className="text-sm text-gray-600 mb-1 block">
+                Confirm New Password
+              </label>
               <input
                 type="password"
                 value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, confirmPassword: e.target.value })
+                }
                 className="w-full px-4 py-3 bg-green-100 rounded-lg border-2 border-transparent focus:border-green-300 outline-none transition-all"
                 placeholder="Confirm password"
               />
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, confirmPassword: "" })}
+                onClick={() =>
+                  setFormData({ ...formData, confirmPassword: "" })
+                }
                 className="absolute right-3 top-9 p-1 hover:bg-gray-200 rounded-full transition-colors"
               >
                 <X className="w-4 h-4 text-gray-600" />

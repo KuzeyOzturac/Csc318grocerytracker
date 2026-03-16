@@ -7,6 +7,7 @@ import { ShoppingList } from "./components/ShoppingList";
 import { Auth } from "./components/Auth";
 import { Profile } from "./components/Profile";
 import { Roommates } from "./components/Roommates";
+import { RoommateDetail } from "./components/RoommateDetail";
 import { AddItem } from "./components/AddItem";
 import { ItemDetail } from "./components/ItemDetail";
 import { Help } from "./components/Help";
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
       { path: "scan-receipt", Component: ScanReceipt },
       { path: "profile", Component: Profile },
       { path: "roommates", Component: Roommates },
+      { path: "roommates/:id", Component: RoommateDetail },
       { path: "add-item", Component: AddItem },
       { path: "help", Component: Help },
     ],

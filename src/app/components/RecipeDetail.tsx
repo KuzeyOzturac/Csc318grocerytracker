@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Check, Circle, Clock, ChefHat, X } from "lucide-react";
+import { ArrowLeft, Check, Clock, ChefHat, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "../context/AppContext";
 import { toast } from "sonner";
@@ -8,10 +8,9 @@ import { toast } from "sonner";
 export const RecipeDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { recipes, inventory, updateInventoryItem } = useApp();
+  const { recipes, inventory, useInventoryItem } = useApp();
 
   const recipe = recipes.find((r) => r.id === id);
-  const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedIngredients, setSelectedIngredients] = useState<string[]>([]);
@@ -32,41 +31,72 @@ export const RecipeDetail = () => {
     }
   };
 
+  const getIngredientName = (ingredient: (typeof recipe.ingredients)[number]) =>
+    typeof ingredient === "string" ? ingredient : ingredient.name;
+
+  const getIngredientAmount = (
+    ingredient: (typeof recipe.ingredients)[number],
+  ) => (typeof ingredient === "string" ? 1 : ingredient.amount);
+
+  const getIngredientQuantity = (
+    ingredient: (typeof recipe.ingredients)[number],
+  ) => (typeof ingredient === "string" ? "1 unit" : ingredient.quantity);
+
+  const getInventoryItem = (ingredientName: string) =>
+    inventory.find(
+      (item) => item.name.toLowerCase() === ingredientName.toLowerCase(),
+    );
+
+  const hasEnoughInventory = (
+    ingredientName: string,
+    requiredAmount: number,
+  ) => {
+    const item = getInventoryItem(ingredientName);
+    return item ? item.amount >= requiredAmount : false;
+  };
+
   const handleFinishCooking = () => {
-    setSelectedIngredients(recipe.ingredients);
+    setSelectedIngredients(
+      recipe.ingredients.map((ingredient) => getIngredientName(ingredient)),
+    );
     setShowConfirmDialog(true);
   };
 
   const toggleIngredient = (ingredient: string) => {
     if (selectedIngredients.includes(ingredient)) {
-      setSelectedIngredients(selectedIngredients.filter((i) => i !== ingredient));
+      setSelectedIngredients(
+        selectedIngredients.filter((i) => i !== ingredient),
+      );
     } else {
       setSelectedIngredients([...selectedIngredients, ingredient]);
     }
   };
 
   const handleConfirmUsage = () => {
-    // Deduct used ingredients from inventory
+    // Deduct used ingredients from inventory and update feed
+    let deductedCount = 0;
+
     selectedIngredients.forEach((ingredientName) => {
-      const item = inventory.find(
-        (i) => i.name.toLowerCase() === ingredientName.toLowerCase()
+      const ingredient = recipe.ingredients.find(
+        (candidate) => getIngredientName(candidate) === ingredientName,
       );
-      if (item && item.amount > 0) {
-        const newAmount = Math.max(0, item.amount - 1);
-        const newQuantity = `${newAmount} ${item.unit}`;
-        const newStatus = newAmount === 0 ? "Out" : newAmount < 3 ? "Low" : "In Stock";
-        
-        updateInventoryItem(item.id, {
-          amount: newAmount,
-          quantity: newQuantity,
-          status: newStatus,
-          lastAdded: "Just now",
-          updatedBy: "ME",
-        });
+      const item = getInventoryItem(ingredientName);
+
+      if (
+        ingredient &&
+        item &&
+        item.amount >= getIngredientAmount(ingredient)
+      ) {
+        useInventoryItem(item.id, getIngredientAmount(ingredient));
+        deductedCount += 1;
       }
     });
 
-    toast.success(`Recipe completed! ${selectedIngredients.length} ingredients deducted from inventory.`);
+    // Close dialog and navigate immediately
+    setShowConfirmDialog(false);
+    toast.success(
+      `Recipe completed! ${deductedCount} ingredient${deductedCount === 1 ? "" : "s"} deducted from inventory.`,
+    );
     navigate("/inventory");
   };
 
@@ -74,8 +104,16 @@ export const RecipeDetail = () => {
     recipe.difficulty === "Low"
       ? "bg-green-100 text-green-700"
       : recipe.difficulty === "Medium"
-      ? "bg-orange-100 text-orange-700"
-      : "bg-red-100 text-red-700";
+        ? "bg-orange-100 text-orange-700"
+        : "bg-red-100 text-red-700";
+
+  const missingIngredients = recipe.ingredients
+    .filter((ingredient) => {
+      const ingredientName = getIngredientName(ingredient);
+      const ingredientAmount = getIngredientAmount(ingredient);
+      return !hasEnoughInventory(ingredientName, ingredientAmount);
+    })
+    .map((ingredient) => getIngredientName(ingredient));
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -89,7 +127,7 @@ export const RecipeDetail = () => {
 
         <div className="space-y-4">
           <h1 className="text-3xl font-black text-white">{recipe.name}</h1>
-          
+
           <div className="flex gap-3">
             <div className="px-4 py-2 bg-white/20 rounded-full border-2 border-white/30">
               <div className="flex items-center gap-2 text-white">
@@ -98,7 +136,9 @@ export const RecipeDetail = () => {
               </div>
             </div>
             <div className={`px-4 py-2 rounded-full ${difficultyColor}`}>
-              <span className="text-sm font-bold">{recipe.difficulty} Effort</span>
+              <span className="text-sm font-bold">
+                {recipe.difficulty} Effort
+              </span>
             </div>
           </div>
 
@@ -122,35 +162,51 @@ export const RecipeDetail = () => {
           <h2 className="text-xl font-black text-gray-900">Ingredients</h2>
           <div className="space-y-3">
             {recipe.ingredients.map((ingredient, index) => {
-              const inInventory = inventory.find(
-                (i) => i.name.toLowerCase() === ingredient.toLowerCase()
+              const ingredientName = getIngredientName(ingredient);
+              const ingredientAmount = getIngredientAmount(ingredient);
+              const ingredientQuantity = getIngredientQuantity(ingredient);
+              const inInventory = getInventoryItem(ingredientName);
+              const hasEnough = hasEnoughInventory(
+                ingredientName,
+                ingredientAmount,
               );
               return (
                 <div
                   key={index}
                   className={`flex items-center gap-3 p-3 rounded-xl ${
-                    inInventory ? "bg-green-50" : "bg-red-50"
+                    hasEnough ? "bg-green-50" : "bg-red-50"
                   }`}
                 >
-                  {inInventory ? (
+                  {hasEnough ? (
                     <Check className="w-5 h-5 text-green-600" />
                   ) : (
                     <X className="w-5 h-5 text-red-600" />
                   )}
-                  <span className="flex-1 font-medium text-gray-900">{ingredient}</span>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">
+                      {ingredientName}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Recipe needs {ingredientQuantity}
+                    </div>
+                  </div>
                   {inInventory && (
-                    <span className="text-xs font-bold text-green-600">
-                      {inInventory.quantity}
-                    </span>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-green-600">
+                        {inInventory.quantity}
+                      </div>
+                      <div className="text-[11px] text-gray-500">on hand</div>
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
-          {recipe.missingIngredients.length > 0 && (
+          {missingIngredients.length > 0 && (
             <div className="pt-4 border-t border-gray-100">
               <p className="text-sm text-red-600">
-                <span className="font-bold">Missing:</span> {recipe.missingIngredients.join(", ")}
+                <span className="font-bold">Missing:</span>{" "}
+                {missingIngredients.join(", ")}
               </p>
             </div>
           )}
@@ -193,13 +249,19 @@ export const RecipeDetail = () => {
                             : "bg-white border-2 border-gray-300 text-gray-600"
                         }`}
                       >
-                        {isCompleted ? <Check className="w-5 h-5" /> : index + 1}
+                        {isCompleted ? (
+                          <Check className="w-5 h-5" />
+                        ) : (
+                          index + 1
+                        )}
                       </div>
                     </div>
                     <div className="flex-1">
                       <p
                         className={`leading-relaxed ${
-                          isCompleted ? "text-gray-500 line-through" : "text-gray-900"
+                          isCompleted
+                            ? "text-gray-500 line-through"
+                            : "text-gray-900"
                         }`}
                       >
                         {step}
@@ -247,7 +309,9 @@ export const RecipeDetail = () => {
             >
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-black text-gray-900">Confirm Ingredients Used</h2>
+                  <h2 className="text-2xl font-black text-gray-900">
+                    Confirm Ingredients Used
+                  </h2>
                   <button
                     onClick={() => setShowConfirmDialog(false)}
                     className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -257,20 +321,24 @@ export const RecipeDetail = () => {
                 </div>
 
                 <p className="text-gray-600">
-                  Select the ingredients you actually used. These will be deducted from your inventory.
+                  Select the ingredients you actually used. These will be
+                  deducted from your inventory.
                 </p>
 
                 <div className="space-y-3">
                   {recipe.ingredients.map((ingredient) => {
-                    const item = inventory.find(
-                      (i) => i.name.toLowerCase() === ingredient.toLowerCase()
+                    const ingredientName = getIngredientName(ingredient);
+                    const ingredientAmount = getIngredientAmount(ingredient);
+                    const ingredientQuantity = getIngredientQuantity(ingredient);
+                    const item = getInventoryItem(ingredientName);
+                    const isSelected = selectedIngredients.includes(
+                      ingredientName,
                     );
-                    const isSelected = selectedIngredients.includes(ingredient);
-                    
+
                     return (
                       <div
-                        key={ingredient}
-                        onClick={() => toggleIngredient(ingredient)}
+                        key={ingredientName}
+                        onClick={() => toggleIngredient(ingredientName)}
                         className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
                           isSelected
                             ? "bg-green-50 border-green-300"
@@ -285,14 +353,33 @@ export const RecipeDetail = () => {
                                 : "bg-white border-gray-300"
                             }`}
                           >
-                            {isSelected && <Check className="w-4 h-4 text-white" />}
+                            {isSelected && (
+                              <Check className="w-4 h-4 text-white" />
+                            )}
                           </div>
-                          <span className="flex-1 font-medium text-gray-900">{ingredient}</span>
-                          {item && (
-                            <span className="text-xs font-bold text-gray-500">
-                              Current: {item.quantity}
-                            </span>
-                          )}
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">
+                              {ingredientName}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Deduct {ingredientQuantity}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {item && (
+                              <div className="text-xs font-bold text-gray-500">
+                                Current: {item.quantity}
+                              </div>
+                            )}
+                            {!hasEnoughInventory(
+                              ingredientName,
+                              ingredientAmount,
+                            ) && (
+                              <div className="text-xs font-medium text-red-500">
+                                Not enough in inventory
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

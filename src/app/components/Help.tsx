@@ -1,6 +1,15 @@
 import React from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Home, ClipboardList, Utensils, ShoppingCart, Users, Plus, HelpCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Home,
+  ClipboardList,
+  Utensils,
+  ShoppingCart,
+  Users,
+  Plus,
+  HelpCircle,
+} from "lucide-react";
 import { motion } from "motion/react";
 
 export const Help = () => {
@@ -16,13 +25,14 @@ export const Help = () => {
     {
       icon: <ClipboardList className="w-8 h-8" />,
       title: "Inventory",
-      description: "Track what's in your pantry with real-time updates and expiry dates",
+      description:
+        "Track what's in your pantry with real-time updates and expiry dates",
       color: "bg-green-100 text-green-600",
     },
     {
       icon: <Utensils className="w-8 h-8" />,
-      title: "Meal Ideas",
-      description: "Get recipe suggestions based on your current ingredients",
+      title: "Cooking",
+      description: "Get recipe suggestions and cook meals using your inventory",
       color: "bg-orange-100 text-orange-600",
     },
     {
@@ -34,13 +44,15 @@ export const Help = () => {
     {
       icon: <Users className="w-8 h-8" />,
       title: "Shared vs Personal",
-      description: "Color-coded labels help you distinguish between shared and personal items",
+      description:
+        "Color-coded labels help you distinguish between shared and personal items",
       color: "bg-pink-100 text-pink-600",
     },
     {
       icon: <Plus className="w-8 h-8" />,
       title: "Add Items",
-      description: "Multiple ways to add items: manual entry, receipt scanning, or from recipes",
+      description:
+        "Multiple ways to add items: manual entry, receipt scanning, or from recipes",
       color: "bg-yellow-100 text-yellow-600",
     },
   ];
@@ -80,12 +92,14 @@ export const Help = () => {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-3xl shadow-lg p-6 space-y-3"
         >
-          <h2 className="text-xl font-black text-gray-900">What is PantryPal?</h2>
+          <h2 className="text-xl font-black text-gray-900">
+            What is PantryPal?
+          </h2>
           <p className="text-gray-600 leading-relaxed">
-            PantryPal is designed for shared households to track groceries, plan meals, and avoid
-            duplicate purchases. Keep clear visibility into what's shared vs personal, get meal
-            suggestions based on available ingredients, and shop confidently knowing what's already
-            at home.
+            PantryPal is designed for shared households to track groceries, plan
+            meals, and avoid duplicate purchases. Keep clear visibility into
+            what's shared vs personal, get meal suggestions based on available
+            ingredients, and shop confidently knowing what's already at home.
           </p>
         </motion.div>
 
@@ -103,11 +117,15 @@ export const Help = () => {
               className="bg-white rounded-3xl shadow-lg p-6"
             >
               <div className="flex items-start gap-4">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${feature.color}`}>
+                <div
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center ${feature.color}`}
+                >
                   {feature.icon}
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-gray-900 mb-1">{feature.title}</h3>
+                  <h3 className="font-bold text-gray-900 mb-1">
+                    {feature.title}
+                  </h3>
                   <p className="text-sm text-gray-600">{feature.description}</p>
                 </div>
               </div>
@@ -127,7 +145,9 @@ export const Help = () => {
             {tips.map((tip, index) => (
               <li key={index} className="flex items-start gap-3">
                 <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-white text-xs font-bold">{index + 1}</span>
+                  <span className="text-white text-xs font-bold">
+                    {index + 1}
+                  </span>
                 </div>
                 <p className="text-gray-700">{tip}</p>
               </li>
@@ -159,7 +179,9 @@ export const Help = () => {
               </div>
               <div>
                 <p className="font-bold text-gray-900">Low Stock</p>
-                <p className="text-sm text-gray-500">Running low, consider restocking</p>
+                <p className="text-sm text-gray-500">
+                  Running low, consider restocking
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">

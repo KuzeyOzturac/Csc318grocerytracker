@@ -9,7 +9,7 @@ type AddMode = "manual" | "receipt" | "recipe";
 
 export const AddItem = () => {
   const navigate = useNavigate();
-  const { addInventoryItem } = useApp();
+  const { addInventoryItem, inventory, user } = useApp();
   const [mode, setMode] = useState<AddMode>("manual");
 
   // Manual add form state
@@ -31,6 +31,21 @@ export const AddItem = () => {
 
     const quantity = `${amount} ${unit}`;
     const numAmount = parseFloat(amount);
+    const nextExpiryDate =
+      expiryDate ||
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+    const matchingItem = inventory.find(
+      (item) =>
+        item.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+        item.isShared === isShared,
+    );
+
+    if (numAmount < 0 && !matchingItem) {
+      toast.error("You can only remove quantity from an existing inventory item");
+      return;
+    }
 
     addInventoryItem({
       name,
@@ -38,9 +53,9 @@ export const AddItem = () => {
       isShared,
       status: numAmount > 0 ? "In Stock" : "Out",
       lastAdded: "Just now",
-      updatedBy: "ME",
+      updatedBy: user.name,
       quantity,
-      expiryDate: expiryDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      expiryDate: nextExpiryDate,
       unit,
       amount: numAmount,
     });
