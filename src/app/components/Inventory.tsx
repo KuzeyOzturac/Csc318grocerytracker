@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, Plus, Users, User, ArrowLeft } from "lucide-react";
+import { Search, Plus, Users, User, ArrowLeft, Boxes } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams, useNavigate, Link } from "react-router";
 import { useApp } from "../context/AppContext";
@@ -13,11 +13,12 @@ export const Inventory = () => {
   const { inventory, shoppingList, user, roommates } = useApp();
 
   const normalizeItemName = (name: string) => name.trim().toLowerCase();
-  const shoppingListNames = new Set(
-    shoppingList
-      .filter((item) => item.needed)
-      .map((item) => normalizeItemName(item.name)),
-  );
+  const neededShoppingItems = shoppingList.filter((item) => item.needed);
+
+  const isCurrentUserListOwner = (addedBy: string) =>
+    ["me", user.name, user.initials, user.username].some(
+      (value) => value.toLowerCase() === addedBy.toLowerCase(),
+    );
 
   const filteredItems = inventory.filter(item => {
     const matchesFilter = 
@@ -60,6 +61,29 @@ export const Inventory = () => {
       .slice(0, 2);
   };
 
+  const getListBadge = (itemName: string) => {
+    const matchedItems = neededShoppingItems.filter(
+      (shoppingItem) =>
+        normalizeItemName(shoppingItem.name) === normalizeItemName(itemName),
+    );
+
+    if (matchedItems.some((shoppingItem) => isCurrentUserListOwner(shoppingItem.addedBy))) {
+      return {
+        label: "In Your List",
+        className: "bg-orange-500 text-white",
+      };
+    }
+
+    if (matchedItems.length > 0) {
+      return {
+        label: "In Roommate's List",
+        className: "bg-blue-500 text-white",
+      };
+    }
+
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-white p-6 space-y-4">
@@ -90,7 +114,7 @@ export const Inventory = () => {
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
               activeFilter === "all" ? "bg-green-200" : "bg-gray-100"
             }`}>
-              <Users className={`w-5 h-5 ${
+              <Boxes className={`w-5 h-5 ${
                 activeFilter === "all" ? "text-green-700" : "text-gray-600"
               }`} />
             </div>
@@ -157,9 +181,7 @@ export const Inventory = () => {
             const expiryColor = daysUntilExpiry < 3 ? 'bg-red-100 border-red-300' : 
                                 daysUntilExpiry < 7 ? 'bg-orange-100 border-orange-300' : 
                                 'bg-white border-gray-200';
-            const inShoppingList = shoppingListNames.has(
-              normalizeItemName(item.name),
-            );
+            const listBadge = getListBadge(item.name);
             
             return (
               <motion.div
@@ -173,13 +195,15 @@ export const Inventory = () => {
                 className={`relative p-4 rounded-2xl border-2 ${expiryColor} shadow-sm cursor-pointer hover:shadow-md transition-all`}
               >
                 {/* Shopping list badge */}
-                {inShoppingList && (
-                  <div className="absolute top-3 right-3 bg-orange-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">
-                    In Your List
+                {listBadge && (
+                  <div
+                    className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full ${listBadge.className}`}
+                  >
+                    {listBadge.label}
                   </div>
                 )}
 
-                <div className={`${inShoppingList ? "mt-10" : ""}`}>
+                <div className={`${listBadge ? "mt-10" : ""}`}>
                   <div className="flex items-start gap-2 mb-2">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                       item.isShared ? "bg-green-200" : "bg-blue-200"

@@ -275,7 +275,7 @@ export const ShoppingList = () => {
   const lowStockItems = [
     {
       id: "low1",
-      name: "Rice",
+      name: "Basmati Rice",
       quantity: "<1 bag in inventory",
       isShared: true,
     },
@@ -463,8 +463,8 @@ export const ShoppingList = () => {
                       <div>
                         <h4 className="font-bold text-gray-900">{item.name}</h4>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-                            In List ⚠
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                            In Roommate's List
                           </span>
                         </div>
                       </div>

@@ -416,13 +416,15 @@ export const MealIdeas = () => {
                       isPriority ? "border-red-300" : "border-gray-200"
                     }`}
                   >
-                    {isPriority && (
-                      <div className="absolute top-4 right-4 px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-full">
-                        Uses Ingredients Expiring Soon!
-                      </div>
-                    )}
-
                     <div className="space-y-4">
+                      {isPriority && (
+                        <div className="flex justify-end">
+                          <div className="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-full text-right">
+                            Uses Ingredients Expiring Soon!
+                          </div>
+                        </div>
+                      )}
+
                       <div>
                         <h3 className="text-xl font-bold text-gray-900 mb-2">
                           {recipe.name}
