@@ -10,7 +10,14 @@ export const Inventory = () => {
   const typeParam = searchParams.get("type");
   const [activeFilter, setActiveFilter] = useState<"all" | "personal" | "shared">("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const { inventory } = useApp();
+  const { inventory, shoppingList, user, roommates } = useApp();
+
+  const normalizeItemName = (name: string) => name.trim().toLowerCase();
+  const shoppingListNames = new Set(
+    shoppingList
+      .filter((item) => item.needed)
+      .map((item) => normalizeItemName(item.name)),
+  );
 
   const filteredItems = inventory.filter(item => {
     const matchesFilter = 
@@ -32,6 +39,25 @@ export const Inventory = () => {
   const formatExpiryDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const getUpdaterInitials = (updatedBy: string) => {
+    const householdMember = [user, ...roommates].find(
+      (member) =>
+        member.initials === updatedBy ||
+        member.name.toLowerCase() === updatedBy.toLowerCase(),
+    );
+
+    if (householdMember) {
+      return householdMember.initials;
+    }
+
+    return updatedBy
+      .split(" ")
+      .filter(Boolean)
+      .map((part) => part[0]?.toUpperCase())
+      .join("")
+      .slice(0, 2);
   };
 
   return (
@@ -131,9 +157,9 @@ export const Inventory = () => {
             const expiryColor = daysUntilExpiry < 3 ? 'bg-red-100 border-red-300' : 
                                 daysUntilExpiry < 7 ? 'bg-orange-100 border-orange-300' : 
                                 'bg-white border-gray-200';
-            
-            // Check if item is in shopping list (mock for now)
-            const inShoppingList = index === 0;
+            const inShoppingList = shoppingListNames.has(
+              normalizeItemName(item.name),
+            );
             
             return (
               <motion.div
@@ -146,28 +172,30 @@ export const Inventory = () => {
                 onClick={() => navigate(`/inventory/${item.id}`)}
                 className={`relative p-4 rounded-2xl border-2 ${expiryColor} shadow-sm cursor-pointer hover:shadow-md transition-all`}
               >
-                {/* Badge indicating in shopping list */}
+                {/* Shopping list badge */}
                 {inShoppingList && (
-                  <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">
-                    In Your List ⚠
+                  <div className="absolute top-3 right-3 bg-orange-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">
+                    In Your List
                   </div>
                 )}
-                
-                {/* Shared/Personal Icon */}
-                <div className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center ${
-                  item.isShared ? "bg-green-200" : "bg-blue-200"
-                }`}>
-                  {item.isShared ? (
-                    <Users className="w-4 h-4 text-green-700" />
-                  ) : (
-                    <User className="w-4 h-4 text-blue-700" />
-                  )}
-                </div>
 
-                <div className="mt-8">
-                  <h4 className="font-bold text-gray-900 mb-1">{item.name}</h4>
-                  <div className="text-sm text-blue-600 mb-2">{item.quantity}</div>
-                  
+                <div className={`${inShoppingList ? "mt-10" : ""}`}>
+                  <div className="flex items-start gap-2 mb-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      item.isShared ? "bg-green-200" : "bg-blue-200"
+                    }`}>
+                      {item.isShared ? (
+                        <Users className="w-4 h-4 text-green-700" />
+                      ) : (
+                        <User className="w-4 h-4 text-blue-700" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-gray-900 mb-1">{item.name}</h4>
+                      <div className="text-sm text-blue-600">{item.quantity}</div>
+                    </div>
+                  </div>
+
                   {daysUntilExpiry <= 7 && (
                     <div className={`text-xs font-medium mb-2 ${
                       daysUntilExpiry < 3 ? 'text-red-600' : 'text-orange-600'
@@ -180,21 +208,11 @@ export const Inventory = () => {
                     Last bought: {item.lastAdded} 
                     <span className="inline-flex items-center ml-1">
                       <div className="w-4 h-4 rounded-full bg-gradient-to-br from-blue-400 to-orange-400 flex items-center justify-center text-white text-[8px] font-bold">
-                        {item.updatedBy}
+                        {getUpdaterInitials(item.updatedBy)}
                       </div>
                     </span>
                   </div>
                 </div>
-
-                {/* Orange "In List" badge for items in shopping list */}
-                {index === 4 && (
-                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                    <span>In List</span>
-                    <span className="w-4 h-4 rounded-full bg-white text-orange-500 flex items-center justify-center">
-                      ⚠
-                    </span>
-                  </div>
-                )}
               </motion.div>
             );
           })}

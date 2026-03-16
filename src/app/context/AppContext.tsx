@@ -381,6 +381,41 @@ const mockFeed: FeedEntry[] = [
   },
 ];
 
+const normalizeItemName = (name: string) => name.trim().toLowerCase();
+
+const buildInventoryWithSeededHistory = (
+  items: InventoryItem[],
+  feed: FeedEntry[],
+) =>
+  items.map((item) => {
+    const seededHistory = feed.flatMap((entry) =>
+      entry.items
+        .filter(
+          (feedItem) =>
+            normalizeItemName(feedItem.name) === normalizeItemName(item.name),
+        )
+        .map<PurchaseRecord>((feedItem) => ({
+          buyerName: entry.userName,
+          buyerInitials: entry.userInitials,
+          quantity: feedItem.quantity,
+          date: entry.date,
+          expiry: item.expiryDate,
+          action: entry.action,
+        })),
+    );
+
+    if (seededHistory.length === 0) {
+      return item;
+    }
+
+    return {
+      ...item,
+      purchaseHistory: item.purchaseHistory
+        ? [...seededHistory, ...item.purchaseHistory]
+        : seededHistory,
+    };
+  });
+
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User>({
     id: "me",
@@ -388,7 +423,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     initials: "VR",
     username: "@vibraizada",
   });
-  const [inventory, setInventory] = useState<InventoryItem[]>(mockInventory);
+  const [inventory, setInventory] = useState<InventoryItem[]>(() =>
+    buildInventoryWithSeededHistory(mockInventory, mockFeed),
+  );
   const [feed, setFeed] = useState<FeedEntry[]>(mockFeed);
   const addPurchaseRecord = (
     itemId: string,
