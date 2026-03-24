@@ -26,6 +26,9 @@ interface Activity {
   timestamp: string;
   date: string;
   action: "added" | "bought" | "removed" | "used";
+  eventId?: string;
+  recipeId?: string;
+  recipeName?: string;
 }
 
 type DateFilter = "all" | "today" | "last7" | "last30";
@@ -34,6 +37,8 @@ export const Dashboard = () => {
   const navigate = useNavigate();
   const { user, roommates, feed, inventory } = useApp();
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [roomName, setRoomName] = useState("TC203");
+  const [isEditingRoomName, setIsEditingRoomName] = useState(false);
 
   const allRoommates = [user, ...roommates];
   const allRoommateIds = allRoommates.map((roommate) => roommate.id);
@@ -123,6 +128,45 @@ export const Dashboard = () => {
 
     return matchesRoommate && isWithinDateRange(activity.date);
   });
+
+  // Group cooking events with same eventId
+  const groupedActivities = activities.reduce((acc: Activity[], activity: Activity) => {
+    if (activity.action === "used" && activity.eventId) {
+      // Check if we already have this cooking event grouped
+      const existingIndex = acc.findIndex(
+        (a) => a.eventId === activity.eventId && a.action === "used"
+      );
+      
+      if (existingIndex >= 0) {
+        // Merge items into existing grouped event
+        const existing = acc[existingIndex];
+        const combinedItems = [...existing.items, ...activity.items];
+        
+        // Determine type (shared/personal/mixed)
+        const hasShared = combinedItems.some((item) => item.isShared);
+        const hasPersonal = combinedItems.some((item) => !item.isShared);
+        const newType: Activity["type"] = hasShared && hasPersonal
+          ? "mixed"
+          : hasShared
+            ? "shared"
+            : "personal";
+        
+        acc[existingIndex] = {
+          ...existing,
+          type: newType,
+          items: combinedItems,
+        };
+      } else {
+        // First item of this cooking event
+        acc.push(activity);
+      }
+    } else {
+      // Non-cooking events pass through unchanged
+      acc.push(activity);
+    }
+    return acc;
+  }, []);
+
   const getActivityVerb = (action: Activity["action"]) => {
     if (action === "used") return "used some";
     if (action === "removed") return "removed some";
@@ -138,7 +182,30 @@ export const Dashboard = () => {
           <div>
             <div className="flex items-center gap-2 text-gray-600 mb-1">
               <span className="text-sm">Roommates of</span>
-              <span className="font-medium">TC203</span>
+              {isEditingRoomName ? (
+                <input
+                  autoFocus
+                  type="text"
+                  value={roomName}
+                  onChange={(e) => setRoomName(e.target.value)}
+                  onBlur={() => setIsEditingRoomName(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setIsEditingRoomName(false);
+                    if (e.key === "Escape") {
+                      setRoomName("TC203");
+                      setIsEditingRoomName(false);
+                    }
+                  }}
+                  className="font-medium px-2 py-1 border border-gray-300 rounded outline-none focus:border-gray-500"
+                />
+              ) : (
+                <button
+                  onClick={() => setIsEditingRoomName(true)}
+                  className="font-medium hover:underline cursor-pointer"
+                >
+                  {roomName}
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-3">
               {allRoommates.map((roommate, index) => (
@@ -233,108 +300,163 @@ export const Dashboard = () => {
 
         {/* Activity Feed */}
         <div className="space-y-4">
-          {activities.length === 0 && (
+          {groupedActivities.length === 0 && (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500">
               No feed activity matches the selected filters.
             </div>
           )}
 
-          {activities.map((activity, index) => (
+          {groupedActivities.map((activity, index) => (
             <motion.div
               key={activity.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={`rounded-2xl p-6 shadow-sm ${
+              className={`rounded-2xl px-3 pt-3 pb-2 shadow-sm border transition-all hover:shadow-md ${
                 activity.action === "used" || activity.action === "removed"
-                  ? "bg-red-100"
-                  : "bg-green-100"
+                  ? "bg-red-50 border-red-200"
+                  : "bg-green-50 border-green-200"
               }`}
             >
-                <div className="flex items-start gap-4 mb-4">
+              <div className="flex items-start gap-4">
                 <button
                   type="button"
                   onClick={() => navigate(getRoommateRoute(activity.userId))}
-                  className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-orange-400 flex items-center justify-center text-white font-bold shadow-md flex-shrink-0"
+                  className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-orange-400 flex items-center justify-center text-white font-bold shadow-md flex-shrink-0 hover:scale-105 transition-transform"
                 >
                   {activity.userInitials}
                 </button>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-medium text-gray-900">
-                      {activity.userName}
-                    </span>
-                    <span className="text-gray-600">
-                      {getActivityVerb(activity.action)}
-                    </span>
-                    {activity.type === "shared" && (
-                      <span className="font-medium text-green-700">
-                        Shared Groceries
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900 text-base">
+                        {activity.userName}
                       </span>
-                    )}
-                    {activity.type === "personal" && (
-                      <span className="font-medium text-blue-700">
-                        Personal Groceries
+                      <span className="text-gray-600 text-sm">
+                        {getActivityVerb(activity.action)}
                       </span>
-                    )}
-                    {activity.type === "mixed" && (
-                      <>
-                        <span className="font-medium text-blue-700">
-                          Personal Groceries
+                      {activity.action === "used" && activity.recipeName && (
+                        <span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
+                          🍳 {activity.recipeName}
                         </span>
-                        <span className="text-gray-600">and</span>
-                        <span className="font-medium text-green-700">
+                      )}
+                    </div>
+                    <div>
+                      {activity.type === "shared" && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
                           Shared Groceries
                         </span>
-                      </>
-                    )}
+                      )}
+                      {activity.type === "personal" && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                          <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                          Personal Groceries
+                        </span>
+                      )}
+                      {activity.type === "mixed" && (
+                        <div className="flex items-center gap-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                            Personal
+                          </span>
+                          <span className="text-gray-400 text-xs">+</span>
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                            Shared
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-
-                  <div className="space-y-2">
-                    {activity.items.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-3 bg-white rounded-xl p-3 border border-gray-200"
-                      >
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            item.isShared ? "bg-green-200" : "bg-blue-200"
-                          }`}
-                        >
-                          <Users
-                            className={`w-5 h-5 ${
-                              item.isShared ? "text-green-700" : "text-blue-700"
-                            }`}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">
-                            {item.name} - {item.quantity}
-                          </div>
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {(() => {
-                            const invItem = inventory.find(
-                              (inv) => inv.name === item.name,
-                            );
-                            return invItem
-                              ? `${invItem.amount} ${invItem.unit} available`
-                              : "0 available";
-                          })()}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {activity.items.length > 2 && (
-                    <button className="mt-3 px-6 py-2 bg-gray-700 text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors">
-                      Show More
-                    </button>
-                  )}
                 </div>
               </div>
 
-              <div className="text-center text-sm text-gray-700 font-medium">
+              <div className="space-y-3 mb-2 mt-2">
+                {activity.action === "used" || activity.action === "removed" ? (
+                  <>
+                    {activity.items.filter(item => item.isShared).length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-gray-600 px-2">
+                          Shared
+                        </div>
+                        {activity.items.filter(item => item.isShared).map((item, idx) => {
+                          const inventoryItem = inventory.find(invItem => invItem.name.toLowerCase() === item.name.toLowerCase());
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => inventoryItem && navigate(`/inventory/${inventoryItem.id}`)}
+                              className="w-full text-left hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-200"
+                            >
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-green-100">
+                                <span className="text-green-600 text-xs">S</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {item.name} <span className="font-normal text-gray-600">· {item.quantity}</span>
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {activity.items.filter(item => !item.isShared).length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-gray-600 px-2">
+                          Personal
+                        </div>
+                        {activity.items.filter(item => !item.isShared).map((item, idx) => {
+                          const inventoryItem = inventory.find(invItem => invItem.name.toLowerCase() === item.name.toLowerCase());
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => inventoryItem && navigate(`/inventory/${inventoryItem.id}`)}
+                              className="w-full text-left hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-200"
+                            >
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100">
+                                <span className="text-blue-600 text-xs">P</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {item.name} <span className="font-normal text-gray-600">· {item.quantity}</span>
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {activity.items.map((item, idx) => {
+                      const inventoryItem = inventory.find(invItem => invItem.name.toLowerCase() === item.name.toLowerCase());
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => inventoryItem && navigate(`/inventory/${inventoryItem.id}`)}
+                          className="w-full text-left hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-200"
+                        >
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            item.isShared ? "bg-green-100" : "bg-blue-100"
+                          }`}>
+                            <span className={item.isShared ? "text-green-600 text-xs" : "text-blue-600 text-xs"}>
+                              {item.isShared ? "S" : "P"}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium text-gray-900">
+                              {item.name} <span className="font-normal text-gray-600">· {item.quantity}</span>
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+              <div className="text-xs text-gray-500 flex justify-end">
                 {activity.timestamp}
               </div>
             </motion.div>

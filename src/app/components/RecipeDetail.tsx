@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Check, Clock, ChefHat, X } from "lucide-react";
+import { ArrowLeft, Check, Clock, ChefHat, X, ShoppingCart } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "../context/AppContext";
 import { toast } from "sonner";
@@ -8,7 +8,7 @@ import { toast } from "sonner";
 export const RecipeDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { recipes, inventory, useInventoryItem } = useApp();
+  const { recipes, inventory, useInventoryItem, addShoppingItem, user } = useApp();
 
   const recipe = recipes.find((r) => r.id === id);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
@@ -74,6 +74,7 @@ export const RecipeDetail = () => {
 
   const handleConfirmUsage = () => {
     // Deduct used ingredients from inventory and update feed
+    const eventId = `cooking-${Date.now()}`; // Unique ID for this cooking event
     let deductedCount = 0;
 
     selectedIngredients.forEach((ingredientName) => {
@@ -87,7 +88,13 @@ export const RecipeDetail = () => {
         item &&
         item.amount >= getIngredientAmount(ingredient)
       ) {
-        useInventoryItem(item.id, getIngredientAmount(ingredient));
+        useInventoryItem(
+          item.id,
+          getIngredientAmount(ingredient),
+          eventId,
+          recipe.id,
+          recipe.name
+        );
         deductedCount += 1;
       }
     });
@@ -98,6 +105,35 @@ export const RecipeDetail = () => {
       `Recipe completed! ${deductedCount} ingredient${deductedCount === 1 ? "" : "s"} deducted from inventory.`,
     );
     navigate("/inventory");
+  };
+
+  const handleAddMissingToShoppingList = () => {
+    if (missingIngredients.length === 0) {
+      toast.info("No missing ingredients!");
+      return;
+    }
+
+    let addedCount = 0;
+    missingIngredients.forEach((ingredientName) => {
+      const ingredient = recipe.ingredients.find(
+        (candidate) => getIngredientName(candidate) === ingredientName,
+      );
+      if (ingredient) {
+        const ingredientQuantity = getIngredientQuantity(ingredient);
+        addShoppingItem({
+          name: ingredientName,
+          category: "Other",
+          addedBy: user.name,
+          needed: true,
+          quantity: ingredientQuantity,
+        });
+        addedCount += 1;
+      }
+    });
+
+    toast.success(
+      `Added ${addedCount} ingredient${addedCount === 1 ? "" : "s"} to shopping list!`,
+    );
   };
 
   const difficultyColor =
@@ -203,11 +239,18 @@ export const RecipeDetail = () => {
             })}
           </div>
           {missingIngredients.length > 0 && (
-            <div className="pt-4 border-t border-gray-100">
+            <div className="pt-4 border-t border-gray-100 space-y-3">
               <p className="text-sm text-red-600">
                 <span className="font-bold">Missing:</span>{" "}
                 {missingIngredients.join(", ")}
               </p>
+              <button
+                onClick={handleAddMissingToShoppingList}
+                className="w-full py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Add Missing to Shopping List
+              </button>
             </div>
           )}
         </motion.div>

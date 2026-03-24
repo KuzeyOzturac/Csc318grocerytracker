@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Users, User, Pencil, Trash2, Receipt } from "lucide-react";
+import { Users, User, Pencil, Trash2, Receipt, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "../context/AppContext";
 import { toast } from "sonner";
@@ -9,10 +9,13 @@ export const ShoppingList = () => {
     shoppingList,
     updateShoppingItem,
     deleteShoppingItem,
+    addShoppingItem,
     user,
     inventory,
     addPurchaseRecord,
     addFeedEntry,
+    purchaseHistory,
+    addPurchaseHistoryItem,
   } = useApp();
   const [view, setView] = useState<"list" | "confirm">("list");
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
@@ -24,6 +27,8 @@ export const ShoppingList = () => {
   const [editingExpiryItemId, setEditingExpiryItemId] = useState<string | null>(
     null,
   );
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+  const [addedLowStockItems, setAddedLowStockItems] = useState<Set<string>>(new Set());
 
   const getTodayDate = () => new Date().toISOString().split("T")[0];
   const getItemExpiry = (itemId: string) => itemExpiries[itemId] ?? getTodayDate();
@@ -69,6 +74,9 @@ export const ShoppingList = () => {
 
   const handleAddAllToInventory = () => {
     const purchasedItems = [];
+    const historyItems = [];
+    const itemsToDelete = [];
+    
     Array.from(checkedItems).forEach((id) => {
       const item = shoppingList.find((i) => i.id === id);
       if (!item) return;
@@ -87,8 +95,22 @@ export const ShoppingList = () => {
           quantity: item.quantity,
           isShared: invItem.isShared,
         });
+        
+        // Add to purchase history
+        historyItems.push({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          buyerName: user.name,
+          purchaseDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          isShared: invItem.isShared,
+        });
+        
+        // Mark for deletion from shopping list
+        itemsToDelete.push(id);
       }
     });
+    
     if (purchasedItems.length > 0) {
       addFeedEntry({
         id: Date.now().toString(),
@@ -111,7 +133,14 @@ export const ShoppingList = () => {
         date: new Date().toISOString().split("T")[0],
         action: "bought",
       });
+      
+      // Add to purchase history (prepend new items for most recent first)
+      historyItems.forEach((item) => addPurchaseHistoryItem(item));
+      
+      // Delete checked items from shopping list
+      itemsToDelete.forEach((id) => deleteShoppingItem(id));
     }
+    
     toast.success("All items added to inventory!");
     setView("list");
     setCheckedItems(new Set());
@@ -272,6 +301,20 @@ export const ShoppingList = () => {
   }
 
   const neededItems = shoppingList.filter((item) => item.needed);
+  
+  // Sort neededItems to put low-stock items first
+  const sortedNeededItems = [...neededItems].sort((a, b) => {
+    const inventoryA = inventory.find((inv) => inv.name.toLowerCase() === a.name.toLowerCase());
+    const inventoryB = inventory.find((inv) => inv.name.toLowerCase() === b.name.toLowerCase());
+    
+    const isALow = inventoryA?.status === "Low";
+    const isBLow = inventoryB?.status === "Low";
+    
+    if (isALow && !isBLow) return -1;
+    if (!isALow && isBLow) return 1;
+    return 0;
+  });
+  
   const lowStockItems = [
     {
       id: "low1",
@@ -279,7 +322,7 @@ export const ShoppingList = () => {
       quantity: "<1 bag in inventory",
       isShared: true,
     },
-  ];
+  ].filter((item) => !addedLowStockItems.has(item.id));
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -294,7 +337,7 @@ export const ShoppingList = () => {
             Items in your list
           </h3>
           <div className="space-y-3">
-            {neededItems.map((item) => {
+            {sortedNeededItems.map((item) => {
               const isChecked = checkedItems.has(item.id);
               const isShared =
                 item.category === "Dairy" || item.name === "Milk";
@@ -308,14 +351,14 @@ export const ShoppingList = () => {
                 >
                   <div className="flex items-start gap-3">
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        isShared ? "bg-green-200" : "bg-blue-200"
+                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-200 border-2 ${
+                        isShared ? "border-green-300" : "border-blue-300"
                       }`}
                     >
                       {isShared ? (
-                        <Users className="w-5 h-5 text-green-700" />
+                        <Users className="w-5 h-5 text-gray-500" />
                       ) : (
-                        <User className="w-5 h-5 text-blue-700" />
+                        <User className="w-5 h-5 text-gray-500" />
                       )}
                     </div>
 
@@ -334,11 +377,15 @@ export const ShoppingList = () => {
                                 <input
                                   type="text"
                                   value={editingQuantity}
-                                  onChange={(e) =>
-                                    setEditingQuantity(e.target.value)
-                                  }
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === "" || /^\d+(\.\d*)?$/.test(value)) {
+                                      setEditingQuantity(value);
+                                    }
+                                  }}
                                   className="border border-orange-400 rounded px-2 py-1 text-sm font-medium text-orange-600 w-20"
                                   autoFocus
+                                  placeholder="0"
                                 />
                                 <button
                                   onClick={() => saveEditedQuantity(item.id)}
@@ -447,14 +494,14 @@ export const ShoppingList = () => {
               >
                 <div className="flex items-start gap-3">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      item.isShared ? "bg-green-200" : "bg-blue-200"
+                    className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-200 border-2 ${
+                      item.isShared ? "border-green-300" : "border-blue-300"
                     }`}
                   >
                     {item.isShared ? (
-                      <Users className="w-5 h-5 text-green-700" />
+                      <Users className="w-5 h-5 text-gray-500" />
                     ) : (
-                      <User className="w-5 h-5 text-blue-700" />
+                      <User className="w-5 h-5 text-gray-500" />
                     )}
                   </div>
 
@@ -470,15 +517,24 @@ export const ShoppingList = () => {
                       </div>
                       <button
                         onClick={() => {
-                          addShoppingItem({
-                            name: item.name,
-                            category: item.category,
-                            addedBy: user.name,
-                            needed: true,
-                            quantity: item.quantity,
-                          });
+                          const itemExists = shoppingList.some((existingItem) => 
+                            existingItem.name.toLowerCase() === item.name.toLowerCase()
+                          );
+                          
+                          if (!itemExists) {
+                            addShoppingItem({
+                              name: item.name,
+                              category: "Pantry",
+                              addedBy: user.name,
+                              needed: true,
+                              quantity: item.quantity,
+                            });
+                          }
+                          
+                          // Mark as added to hide from low stock section
+                          setAddedLowStockItems((prev) => new Set([...prev, item.id]));
                           toast.success(
-                            `${item.name} added to your shopping list!`,
+                            `${item.name} ${itemExists ? "already in" : "added to"} your shopping list!`,
                           );
                         }}
                         className="px-6 py-2 bg-blue-500 text-white rounded-full text-sm font-medium hover:bg-blue-600 transition-colors"
@@ -492,6 +548,72 @@ export const ShoppingList = () => {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Purchase History */}
+        <div className="space-y-3">
+          <button
+            onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-200 rounded-2xl hover:bg-gray-300 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-gray-700" />
+              <h3 className="text-lg font-bold text-gray-900">
+                Purchase History
+              </h3>
+            </div>
+            <ChevronDown
+              className={`w-5 h-5 text-gray-700 transition-transform ${
+                isHistoryExpanded ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          <AnimatePresence>
+            {isHistoryExpanded && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-3 overflow-hidden"
+              >
+                {purchaseHistory.length === 0 ? (
+                  <div className="bg-gray-50 rounded-2xl p-4 border border-gray-300 text-center text-gray-500">
+                    <p className="text-sm">No previous purchases yet</p>
+                  </div>
+                ) : (
+                  purchaseHistory.map((item, index) => (
+                    <div
+                      key={`${item.id}-${index}`}
+                      className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-200 border-2 ${
+                          item.isShared ? "border-green-300" : "border-blue-300"
+                        }`}>
+                          {item.isShared ? (
+                            <Users className="w-4 h-4 text-gray-500" />
+                          ) : (
+                            <User className="w-4 h-4 text-gray-500" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-gray-900">{item.name}</h4>
+                          <div className="text-sm text-gray-600 mt-1">
+                            {item.quantity} · {item.purchaseDate}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Bought by {item.buyerName}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>

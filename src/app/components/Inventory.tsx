@@ -1,8 +1,15 @@
 import React, { useState } from "react";
-import { Search, Plus, Users, User, ArrowLeft, Boxes } from "lucide-react";
+import { Search, Plus, Users, User, ArrowLeft, Boxes, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams, useNavigate, Link } from "react-router";
 import { useApp } from "../context/AppContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 export const Inventory = () => {
   const navigate = useNavigate();
@@ -10,6 +17,9 @@ export const Inventory = () => {
   const typeParam = searchParams.get("type");
   const [activeFilter, setActiveFilter] = useState<"all" | "personal" | "shared">("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [expiryFilter, setExpiryFilter] = useState<"all" | "expiring-soon" | "expired">("all");
+  const [quantityFilter, setQuantityFilter] = useState<"all" | "low" | "out">("all");
+  const [sortBy, setSortBy] = useState<"name" | "expiry" | "quantity">("name");
   const { inventory, shoppingList, user, roommates } = useApp();
 
   const normalizeItemName = (name: string) => name.trim().toLowerCase();
@@ -26,15 +36,54 @@ export const Inventory = () => {
       (activeFilter === "shared" && item.isShared) || 
       (activeFilter === "personal" && !item.isShared);
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
+    
+    const matchesExpiry = (() => {
+      if (expiryFilter === "all") return true;
+      const daysUntilExpiry = getDaysUntilExpiry(item.expiryDate);
+      if (expiryFilter === "expired") return daysUntilExpiry < 0;
+      if (expiryFilter === "expiring-soon") return daysUntilExpiry >= 0 && daysUntilExpiry <= 6;
+      return true;
+    })();
+    
+    const matchesQuantity = (() => {
+      if (quantityFilter === "all") return true;
+      if (quantityFilter === "low") return item.status === "Low";
+      if (quantityFilter === "out") return item.status === "Out";
+      return true;
+    })();
+    
+    return matchesFilter && matchesSearch && matchesExpiry && matchesQuantity;
+  });
+
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    switch (sortBy) {
+      case "name":
+        return a.name.localeCompare(b.name);
+      case "expiry":
+        const daysA = getDaysUntilExpiry(a.expiryDate);
+        const daysB = getDaysUntilExpiry(b.expiryDate);
+        return daysA - daysB;
+      case "quantity":
+        // Sort by amount (numeric value)
+        return b.amount - a.amount;
+      default:
+        return 0;
+    }
   });
 
   const getDaysUntilExpiry = (expiryDate: string) => {
-    const expiry = new Date(expiryDate);
-    const today = new Date();
-    const diffTime = expiry.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    try {
+      const expiry = new Date(expiryDate + 'T00:00:00'); // Ensure it's parsed as local time
+      // Use a fixed date for demo purposes to match the mock data
+      const today = new Date('2026-03-24T00:00:00');
+      
+      const diffTime = expiry.getTime() - today.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
+    } catch (error) {
+      console.error('Error calculating days until expiry:', error, expiryDate);
+      return Infinity;
+    }
   };
 
   const formatExpiryDate = (dateString: string) => {
@@ -107,15 +156,15 @@ export const Inventory = () => {
             onClick={() => setActiveFilter("all")}
             className={`flex-1 flex flex-col items-center gap-2 py-3 rounded-2xl border-2 transition-all ${
               activeFilter === "all"
-                ? "border-green-500 bg-green-50"
+                ? "border-yellow-500 bg-yellow-50"
                 : "border-gray-200 bg-white hover:border-gray-300"
             }`}
           >
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              activeFilter === "all" ? "bg-green-200" : "bg-gray-100"
+              activeFilter === "all" ? "bg-yellow-200" : "bg-gray-100"
             }`}>
               <Boxes className={`w-5 h-5 ${
-                activeFilter === "all" ? "text-green-700" : "text-gray-600"
+                activeFilter === "all" ? "text-yellow-700" : "text-gray-600"
               }`} />
             </div>
             <span className="text-xs font-medium text-gray-700">View All</span>
@@ -171,16 +220,95 @@ export const Inventory = () => {
             <Search className="w-5 h-5 text-gray-600" />
           </button>
         </div>
+
+        {/* Additional Filters */}
+        <div className="flex gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-full text-sm font-medium flex items-center justify-between hover:bg-gray-800 transition-colors">
+                {expiryFilter === "all" ? "All Expiry Dates" : 
+                 expiryFilter === "expiring-soon" ? "Expiring Soon (≤7 days)" : 
+                 "Expired"}
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-44">
+              <DropdownMenuRadioGroup
+                value={expiryFilter}
+                onValueChange={(value) => setExpiryFilter(value as typeof expiryFilter)}
+              >
+                <DropdownMenuRadioItem value="all">
+                  All Expiry Dates
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="expiring-soon">
+                  Expiring Soon (≤7 days)
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="expired">
+                  Expired
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-full text-sm font-medium flex items-center justify-between hover:bg-gray-800 transition-colors">
+                {quantityFilter === "all" ? "All Quantities" : 
+                 quantityFilter === "low" ? "Low Stock" : 
+                 "Out of Stock"}
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-44">
+              <DropdownMenuRadioGroup
+                value={quantityFilter}
+                onValueChange={(value) => setQuantityFilter(value as typeof quantityFilter)}
+              >
+                <DropdownMenuRadioItem value="all">
+                  All Quantities
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="low">
+                  Low Stock
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="out">
+                  Out of Stock
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-full text-sm font-medium flex items-center justify-between hover:bg-gray-800 transition-colors">
+                Sort by {sortBy === "name" ? "Name" : sortBy === "expiry" ? "Expiry" : "Quantity"}
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-44">
+              <DropdownMenuRadioGroup
+                value={sortBy}
+                onValueChange={(value) => setSortBy(value as typeof sortBy)}
+              >
+                <DropdownMenuRadioItem value="name">
+                  Name
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="expiry">
+                  Expiry
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="quantity">
+                  Quantity
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Inventory Grid */}
       <div className="p-6 grid grid-cols-2 gap-4">
         <AnimatePresence mode="popLayout">
-          {filteredItems.map((item, index) => {
+          {sortedItems.map((item, index) => {
             const daysUntilExpiry = getDaysUntilExpiry(item.expiryDate);
-            const expiryColor = daysUntilExpiry < 3 ? 'bg-red-100 border-red-300' : 
-                                daysUntilExpiry < 7 ? 'bg-orange-100 border-orange-300' : 
-                                'bg-white border-gray-200';
             const listBadge = getListBadge(item.name);
             
             return (
@@ -192,33 +320,29 @@ export const Inventory = () => {
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ delay: index * 0.05 }}
                 onClick={() => navigate(`/inventory/${item.id}`)}
-                className={`relative p-4 rounded-2xl border-2 ${expiryColor} shadow-sm cursor-pointer hover:shadow-md transition-all`}
+                className={`relative p-4 rounded-2xl border-2 bg-white border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-all`}
               >
-                {/* Shopping list badge */}
-                {listBadge && (
-                  <div
-                    className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full ${listBadge.className}`}
-                  >
-                    {listBadge.label}
-                  </div>
-                )}
-
-                <div className={`${listBadge ? "mt-10" : ""}`}>
-                  <div className="flex items-start gap-2 mb-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      item.isShared ? "bg-green-200" : "bg-blue-200"
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-200 border-2 ${
+                      item.isShared ? "border-green-300" : "border-blue-300"
                     }`}>
                       {item.isShared ? (
-                        <Users className="w-4 h-4 text-green-700" />
+                        <Users className="w-4 h-4 text-gray-500" />
                       ) : (
-                        <User className="w-4 h-4 text-blue-700" />
+                        <User className="w-4 h-4 text-gray-500" />
                       )}
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-1">{item.name}</h4>
-                      <div className="text-sm text-blue-600">{item.quantity}</div>
-                    </div>
+                    <h4 className="font-bold text-gray-900 flex-1">{item.name}</h4>
+                    {listBadge && (
+                      <div
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full text-gray-400 bg-gray-100 flex-shrink-0`}
+                      >
+                        {listBadge.label}
+                      </div>
+                    )}
                   </div>
+                  <div className="text-sm text-gray-600 mb-2">{item.quantity}</div>
 
                   {daysUntilExpiry <= 7 && (
                     <div className={`text-xs font-medium mb-2 ${
@@ -243,7 +367,7 @@ export const Inventory = () => {
         </AnimatePresence>
       </div>
 
-      {filteredItems.length === 0 && (
+      {sortedItems.length === 0 && (
         <div className="text-center py-12">
           <p className="text-gray-400">No items found</p>
         </div>

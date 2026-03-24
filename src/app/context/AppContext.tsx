@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
 export interface PurchaseRecord {
   buyerName: string;
@@ -33,6 +33,15 @@ export interface ShoppingItem {
   quantity: string;
 }
 
+export interface PurchaseHistoryItem {
+  id: string;
+  name: string;
+  quantity: string;
+  buyerName: string;
+  purchaseDate: string;
+  isShared: boolean;
+}
+
 export interface Recipe {
   id: string;
   name: string;
@@ -46,6 +55,8 @@ export interface Recipe {
   prepTime: string;
   difficulty: "Low" | "Medium" | "High";
   dietaryTags: string[];
+  cuisine: string;
+  allergens: string[];
   imageUrl?: string;
   steps: string[];
 }
@@ -55,6 +66,11 @@ export interface User {
   name: string;
   initials: string;
   username: string;
+  preferences?: {
+    dietary: string[];
+    cuisine: string[];
+    allergens: string[];
+  };
 }
 
 export interface Roommate {
@@ -79,11 +95,14 @@ interface FeedEntry {
   timestamp: string;
   date: string;
   action: "added" | "bought" | "removed" | "used";
+  eventId?: string; // Groups multiple ingredients from same cooking event
+  recipeId?: string;
+  recipeName?: string;
 }
 
 interface AppContextType {
   // ...existing code...
-  useInventoryItem: (itemId: string, usedAmount?: number) => void;
+  useInventoryItem: (itemId: string, usedAmount?: number, eventId?: string, recipeId?: string, recipeName?: string) => void;
 }
 
 // ...existing code...
@@ -264,6 +283,8 @@ const mockRecipes: Recipe[] = [
     prepTime: "10 min",
     difficulty: "Low",
     dietaryTags: ["Vegetarian", "Vegan"],
+    cuisine: "Italian",
+    allergens: ["Gluten"],
     steps: [
       "Toast the bread slices until golden brown",
       "Mash the avocados in a bowl",
@@ -285,7 +306,9 @@ const mockRecipes: Recipe[] = [
     missingIngredients: ["Yogurt"],
     prepTime: "15 min",
     difficulty: "Low",
-    dietaryTags: ["Vegetarian"],
+    dietaryTags: ["Vegetarian", "High Protein"],
+    cuisine: "Indian",
+    allergens: ["Eggs", "Dairy"],
     steps: [
       "Beat eggs in a bowl",
       "Sauté onions in oil",
@@ -308,12 +331,177 @@ const mockRecipes: Recipe[] = [
     prepTime: "30 min",
     difficulty: "Medium",
     dietaryTags: ["High Protein"],
+    cuisine: "Mexican",
+    allergens: ["Gluten"],
     steps: [
       "Cook rice according to package",
       "Season and grill chicken breast",
       "Sauté onions with tomatoes",
       "Slice cooked chicken",
       "Assemble bowl with rice, chicken, tomatoes, and onions",
+    ],
+  },
+  {
+    id: "4",
+    name: "Greek Salad",
+    ingredients: [
+      { name: "Tomatoes", quantity: "3 tomatoes", amount: 3 },
+      { name: "Greek Yogurt", quantity: "1/2 tub", amount: 0.5 },
+      { name: "Onions", quantity: "1/2 onion", amount: 0.5 },
+      { name: "Cooking Oil", quantity: "30 mL", amount: 30 },
+    ],
+    matchPercentage: 100,
+    missingIngredients: [],
+    prepTime: "15 min",
+    difficulty: "Low",
+    dietaryTags: ["Vegetarian", "Gluten-Free"],
+    cuisine: "Greek",
+    allergens: ["Dairy"],
+    steps: [
+      "Chop tomatoes and onions",
+      "Mix yogurt with oil for dressing",
+      "Combine vegetables in bowl",
+      "Drizzle with yogurt dressing",
+      "Season with herbs and serve",
+    ],
+  },
+  {
+    id: "5",
+    name: "Tomato Pasta",
+    ingredients: [
+      { name: "Tomatoes", quantity: "4 tomatoes", amount: 4 },
+      { name: "Onions", quantity: "1 onion", amount: 1 },
+      { name: "Cooking Oil", quantity: "20 mL", amount: 20 },
+      { name: "Basmati Rice", quantity: "100 g", amount: 100 },
+    ],
+    matchPercentage: 75,
+    missingIngredients: ["Basmati Rice"],
+    prepTime: "25 min",
+    difficulty: "Low",
+    dietaryTags: ["Vegan", "Vegetarian"],
+    cuisine: "Italian",
+    allergens: [],
+    steps: [
+      "Chop tomatoes and onions",
+      "Heat oil in pan",
+      "Sauté onions until soft",
+      "Add tomatoes and simmer",
+      "Serve over cooked rice or pasta",
+    ],
+  },
+  {
+    id: "6",
+    name: "Egg Fried Rice",
+    ingredients: [
+      { name: "Eggs", quantity: "2 eggs", amount: 2 },
+      { name: "Basmati Rice", quantity: "300 g", amount: 300 },
+      { name: "Onions", quantity: "1 onion", amount: 1 },
+      { name: "Cooking Oil", quantity: "25 mL", amount: 25 },
+    ],
+    matchPercentage: 100,
+    missingIngredients: [],
+    prepTime: "20 min",
+    difficulty: "Low",
+    dietaryTags: ["Vegetarian"],
+    cuisine: "Chinese",
+    allergens: ["Eggs"],
+    steps: [
+      "Cook rice and let cool",
+      "Beat eggs in a bowl",
+      "Heat oil and scramble eggs",
+      "Add onions and cook",
+      "Mix in rice and stir-fry",
+    ],
+  },
+  {
+    id: "7",
+    name: "Chicken Stir Fry",
+    ingredients: [
+      { name: "Chicken Breast", quantity: "300 g", amount: 300 },
+      { name: "Onions", quantity: "2 onions", amount: 2 },
+      { name: "Tomatoes", quantity: "2 tomatoes", amount: 2 },
+      { name: "Cooking Oil", quantity: "30 mL", amount: 30 },
+    ],
+    matchPercentage: 75,
+    missingIngredients: ["Chicken Breast"],
+    prepTime: "25 min",
+    difficulty: "Medium",
+    dietaryTags: ["High Protein"],
+    cuisine: "Chinese",
+    allergens: [],
+    steps: [
+      "Slice chicken into strips",
+      "Chop onions and tomatoes",
+      "Heat oil in wok",
+      "Stir-fry chicken until cooked",
+      "Add vegetables and cook until tender",
+    ],
+  },
+  {
+    id: "8",
+    name: "Yogurt Parfait",
+    ingredients: [
+      { name: "Greek Yogurt", quantity: "1 tub", amount: 1 },
+      { name: "Bread", quantity: "1 slice", amount: 1 },
+    ],
+    matchPercentage: 100,
+    missingIngredients: [],
+    prepTime: "5 min",
+    difficulty: "Low",
+    dietaryTags: ["Vegetarian", "Gluten-Free"],
+    cuisine: "American",
+    allergens: ["Dairy", "Gluten"],
+    steps: [
+      "Layer yogurt in glass",
+      "Crumble bread on top",
+      "Repeat layers if desired",
+      "Chill and serve",
+    ],
+  },
+  {
+    id: "9",
+    name: "Simple Omelette",
+    ingredients: [
+      { name: "Eggs", quantity: "3 eggs", amount: 3 },
+      { name: "Cooking Oil", quantity: "10 mL", amount: 10 },
+      { name: "Onions", quantity: "1/2 onion", amount: 0.5 },
+    ],
+    matchPercentage: 100,
+    missingIngredients: [],
+    prepTime: "10 min",
+    difficulty: "Low",
+    dietaryTags: ["Vegetarian", "High Protein"],
+    cuisine: "French",
+    allergens: ["Eggs"],
+    steps: [
+      "Beat eggs thoroughly",
+      "Heat oil in pan",
+      "Pour in eggs",
+      "Add chopped onions",
+      "Fold when set and serve",
+    ],
+  },
+  {
+    id: "10",
+    name: "Rice Pudding",
+    ingredients: [
+      { name: "Basmati Rice", quantity: "150 g", amount: 150 },
+      { name: "Milk", quantity: "500 mL", amount: 500 },
+      { name: "Greek Yogurt", quantity: "1/4 tub", amount: 0.25 },
+    ],
+    matchPercentage: 67,
+    missingIngredients: ["Milk"],
+    prepTime: "45 min",
+    difficulty: "Medium",
+    dietaryTags: ["Vegetarian"],
+    cuisine: "Indian",
+    allergens: ["Dairy"],
+    steps: [
+      "Cook rice with milk",
+      "Stir frequently while cooking",
+      "Sweeten to taste",
+      "Mix in yogurt",
+      "Serve warm or chilled",
     ],
   },
 ];
@@ -427,6 +615,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     buildInventoryWithSeededHistory(mockInventory, mockFeed),
   );
   const [feed, setFeed] = useState<FeedEntry[]>(mockFeed);
+  const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistoryItem[]>(() => {
+    // Load purchase history from localStorage on mount
+    try {
+      const savedHistory = localStorage.getItem("purchaseHistory");
+      return savedHistory ? JSON.parse(savedHistory) : [];
+    } catch (e) {
+      console.error("Failed to load purchase history from localStorage:", e);
+      return [];
+    }
+  });
+
+  // Persist purchase history to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("purchaseHistory", JSON.stringify(purchaseHistory));
+    } catch (e) {
+      console.error("Failed to save purchase history to localStorage:", e);
+    }
+  }, [purchaseHistory]);
+
   const addPurchaseRecord = (
     itemId: string,
     record: PurchaseRecord,
@@ -466,7 +674,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return "In Stock";
   };
 
-  const useInventoryItem = (itemId: string, usedAmount: number = 1) => {
+  const useInventoryItem = (itemId: string, usedAmount: number = 1, eventId?: string, recipeId?: string, recipeName?: string) => {
     setInventory((prev) =>
       prev.map((item) => {
         if (item.id === itemId) {
@@ -497,7 +705,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const inv = inventory.find((i) => i.id === itemId);
     if (inv) {
       addFeedEntry({
-        id: Date.now().toString(),
+        id: eventId || Date.now().toString(),
         userId: user.id,
         userName: user.name,
         userInitials: user.initials,
@@ -518,6 +726,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }),
         date: new Date().toISOString().split("T")[0],
         action: "used",
+        eventId: eventId,
+        recipeId: recipeId,
+        recipeName: recipeName,
       });
     }
   };
@@ -681,6 +892,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setUser({ ...user, ...updates });
   };
 
+  const addPurchaseHistoryItem = (item: Omit<PurchaseHistoryItem, "id">) => {
+    const newItem = { ...item, id: Date.now().toString() };
+    // Prepend to maintain most recent first
+    setPurchaseHistory((prev) => [newItem, ...prev]);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -690,6 +907,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         recipes,
         roommates,
         feed,
+        purchaseHistory,
         addInventoryItem,
         updateInventoryItem,
         deleteInventoryItem,
@@ -702,6 +920,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addPurchaseRecord,
         addFeedEntry,
         useInventoryItem,
+        addPurchaseHistoryItem,
       }}
     >
       {children}
