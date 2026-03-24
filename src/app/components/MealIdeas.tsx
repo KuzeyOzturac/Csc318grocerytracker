@@ -19,28 +19,38 @@ export const MealIdeas = () => {
   } | null>(null);
 
   const [filters, setFilters] = useState({
-    effort: [] as string[],
-    cuisine: [] as string[],
     dietary: [] as string[],
-    protein: [] as string[],
+    cuisine: [] as string[],
+    allergens: [] as string[],
+    steps: [] as string[],
     time: [] as string[],
     expiringSoon: false,
   });
 
-  const recipeFilters = [
+  // Auto-apply saved preferences on component mount
+  useEffect(() => {
+    if (user.preferences) {
+      setFilters((prev) => ({
+        ...prev,
+        dietary: user.preferences?.dietary || [],
+        cuisine: user.preferences?.cuisine || [],
+        allergens: user.preferences?.allergens || [],
+      }));
+    }
+  }, []);
+
+  const dietaryFilters = [
     "High Protein",
     "Vegan",
     "Vegetarian",
     "Halal",
     "Lactose-Free",
     "Gluten-Free",
-    "Italian",
-    "Indian",
-    "Mexican",
-    "Chinese",
-    "Low Effort",
-    "Med-Low Effort",
   ];
+
+  const cuisineFilters = ["Italian", "Indian", "Mexican", "Chinese", "Thai", "Japanese", "Korean", "Mediterranean", "French", "American"];
+  const allergenFilters = ["Dairy", "Eggs", "Gluten", "Nuts"];
+  const stepFilters = ["1-3 steps", "4-5 steps", "6+ steps"];
   const timeFilters = ["<15 mins", "15-30 mins", "30-60 mins", "1+ hours"];
   const expiryOption = "Uses Ingredients Expiring Soon!";
 
@@ -62,10 +72,10 @@ export const MealIdeas = () => {
 
   const isFilterActive = (value: string) => {
     return (
-      filters.effort.includes(value) ||
+      filters.steps.includes(value) ||
       filters.cuisine.includes(value) ||
       filters.dietary.includes(value) ||
-      filters.protein.includes(value) ||
+      filters.allergens.includes(value) ||
       filters.time.includes(value)
     );
   };
@@ -122,15 +132,18 @@ export const MealIdeas = () => {
     }
   };
 
-  const matchesEffortFilter = (recipe: (typeof recipes)[number], filter: string) => {
-    if (recipe.dietaryTags.includes(filter)) {
-      return true;
+  const matchesStepsFilter = (recipe: (typeof recipes)[number], filter: string) => {
+    const steps = recipe.steps.length;
+    switch (filter) {
+      case "1-3 steps":
+        return steps >= 1 && steps <= 3;
+      case "4-5 steps":
+        return steps >= 4 && steps <= 5;
+      case "6+ steps":
+        return steps >= 6;
+      default:
+        return false;
     }
-
-    const normalizedDifficulty =
-      filter === "Med-Low Effort" ? "Medium" : filter.replace(" Effort", "");
-
-    return recipe.difficulty === normalizedDifficulty;
   };
 
   const getMinExpiryDays = (recipe: (typeof recipes)[number]) => {
@@ -180,19 +193,32 @@ export const MealIdeas = () => {
   const filteredRecipes = recipes.filter((recipe) => {
     const prepTimeMinutes = getPrepTimeMinutes(recipe.prepTime);
     const minExpiryDays = getMinExpiryDays(recipe);
-    const effortMatch =
-      filters.effort.length === 0 ||
-      filters.effort.some((filter) => matchesEffortFilter(recipe, filter));
+    const stepsMatch =
+      filters.steps.length === 0 ||
+      filters.steps.some((filter) => matchesStepsFilter(recipe, filter));
     const dietaryMatch =
       filters.dietary.length === 0 ||
       recipe.dietaryTags.some((tag) => filters.dietary.includes(tag));
+    const cuisineMatch =
+      filters.cuisine.length === 0 ||
+      filters.cuisine.includes(recipe.cuisine);
+    const allergensMatch =
+      filters.allergens.length === 0 ||
+      filters.allergens.every((allergen) => !recipe.allergens.includes(allergen));
     const timeMatch =
       filters.time.length === 0 ||
       filters.time.some((filter) => matchesTimeFilter(prepTimeMinutes, filter));
     const expiringSoonMatch =
       !filters.expiringSoon || (minExpiryDays !== null && minExpiryDays <= 3);
 
-    return effortMatch && dietaryMatch && timeMatch && expiringSoonMatch;
+    return (
+      stepsMatch &&
+      dietaryMatch &&
+      cuisineMatch &&
+      allergensMatch &&
+      timeMatch &&
+      expiringSoonMatch
+    );
   });
 
   // Sort by expiry-based prioritization
@@ -200,24 +226,40 @@ export const MealIdeas = () => {
     return (getMinExpiryDays(a) ?? Infinity) - (getMinExpiryDays(b) ?? Infinity);
   });
 
+  // Map filter to its category for consistent color coding
+  const getCategoryForFilter = (filter: string): string => {
+    const dietaryFilters = ["High Protein", "Vegan", "Vegetarian", "Halal", "Lactose-Free", "Gluten-Free"];
+    const cuisineFilters = ["Italian", "Indian", "Mexican", "Chinese", "Thai", "Japanese", "Korean", "Mediterranean", "French", "American"];
+    const allergenFilters = ["Dairy", "Eggs", "Gluten", "Nuts"];
+    
+    if (dietaryFilters.includes(filter)) return "dietary";
+    if (cuisineFilters.includes(filter)) return "cuisine";
+    if (allergenFilters.includes(filter)) return "allergens";
+    if (filter.includes("steps") || filter.includes("mins") || filter.includes("hours")) return "time";
+    
+    return "default";
+  };
+
+  // Subtle, accessible category-based color mapping
   const getFilterColor = (filter: string) => {
-    if (filter === "High Protein") return "bg-pink-500 text-white";
-    if (filter === "Vegan") return "bg-green-400 text-gray-900";
-    if (filter === "Vegetarian") return "bg-green-200 text-gray-900";
-    if (filter === "Halal") return "bg-yellow-600 text-white";
-    if (filter === "Lactose-Free") return "bg-purple-400 text-white";
-    if (filter === "Gluten-Free") return "bg-purple-200 text-gray-900";
-    if (filter === "Italian") return "bg-red-500 text-white";
-    if (filter === "Indian") return "bg-orange-500 text-white";
-    if (filter === "Mexican") return "bg-green-600 text-white";
-    if (filter === "Chinese") return "bg-yellow-400 text-gray-900";
-    if (filter === "Low Effort") return "bg-green-500 text-white";
-    if (filter === "Med-Low Effort") return "bg-yellow-300 text-gray-900";
-    if (filter === "<15 mins") return "bg-sky-500 text-white";
-    if (filter === "15-30 mins") return "bg-cyan-500 text-white";
-    if (filter === "30-60 mins") return "bg-indigo-500 text-white";
-    if (filter === "1+ hours") return "bg-slate-500 text-white";
-    return "bg-gray-400 text-white";
+    const category = getCategoryForFilter(filter);
+    
+    switch (category) {
+      case "dietary":
+        // Green for Dietary Restrictions - subtle background with dark text
+        return "bg-emerald-100 text-emerald-800";
+      case "cuisine":
+        // Blue for Cuisine Types - subtle background with dark text
+        return "bg-blue-100 text-blue-800";
+      case "allergens":
+        // Rose/Red for Allergens - subtle background with dark text
+        return "bg-rose-100 text-rose-800";
+      case "time":
+        // Amber for Prep Time - subtle background with dark text
+        return "bg-amber-100 text-amber-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
   };
 
   useEffect(() => {
@@ -289,16 +331,91 @@ export const MealIdeas = () => {
               <div className="space-y-4">
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Recipe Tags
+                    Dietary Restrictions
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {recipeFilters.map((filter) => {
+                    {dietaryFilters.map((filter) => {
                       const isActive = isFilterActive(filter);
                       return (
                         <button
                           key={filter}
                           type="button"
-                          onClick={() => toggleFilter("effort", filter)}
+                          onClick={() => toggleFilter("dietary", filter)}
+                          className={`px-3 py-2 rounded-full border-2 text-sm font-medium transition-all ${
+                            isActive
+                              ? `${getFilterColor(filter)} border-transparent`
+                              : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                          }`}
+                        >
+                          {filter}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Cuisine Type
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {cuisineFilters.map((filter) => {
+                      const isActive = isFilterActive(filter);
+                      return (
+                        <button
+                          key={filter}
+                          type="button"
+                          onClick={() => toggleFilter("cuisine", filter)}
+                          className={`px-3 py-2 rounded-full border-2 text-sm font-medium transition-all ${
+                            isActive
+                              ? `${getFilterColor(filter)} border-transparent`
+                              : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                          }`}
+                        >
+                          {filter}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Allergens (exclude)
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {allergenFilters.map((filter) => {
+                      const isActive = isFilterActive(filter);
+                      return (
+                        <button
+                          key={filter}
+                          type="button"
+                          onClick={() => toggleFilter("allergens", filter)}
+                          className={`px-3 py-2 rounded-full border-2 text-sm font-medium transition-all ${
+                            isActive
+                              ? `${getFilterColor(filter)} border-transparent`
+                              : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                          }`}
+                        >
+                          {filter}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Number of Steps
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {stepFilters.map((filter) => {
+                      const isActive = isFilterActive(filter);
+                      return (
+                        <button
+                          key={filter}
+                          type="button"
+                          onClick={() => toggleFilter("steps", filter)}
                           className={`px-3 py-2 rounded-full border-2 text-sm font-medium transition-all ${
                             isActive
                               ? `${getFilterColor(filter)} border-transparent`
@@ -365,32 +482,28 @@ export const MealIdeas = () => {
       <div className="p-6 overflow-y-auto pb-24">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Cooking</h2>
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-orange-400 flex items-center justify-center text-white font-bold shadow-md">
-              {user.initials}
-            </div>
-          </div>
-
-          <p className="text-gray-700 mb-6">
-            Choose a recipe to make using the ingredients you have available!
-          </p>
-
-          <div
-            ref={filterAnchorRef}
-            className="relative mb-6 flex items-center gap-2 text-gray-700"
-          >
-            <div className="flex items-center gap-2 p-2 rounded-lg">
-              <Utensils className="w-5 h-5" />
-              <span>Cooking</span>
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold text-gray-900">Cooking</h2>
+              <p className="text-sm text-gray-600 mt-1 mb-2">Find recipes based on what you have</p>
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full font-medium">
+                  {sortedRecipes.length} recipes available
+                </div>
+                <div className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full font-medium">
+                  7 new recipes added
+                </div>
+              </div>
             </div>
             <button
               type="button"
+              ref={filterAnchorRef}
               onClick={() => setShowFilters((prev) => !prev)}
-              className={`p-2 rounded-full transition-colors ${
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
                 showFilters ? "bg-gray-200" : "hover:bg-gray-200"
               }`}
             >
-              <FilterIcon className="w-5 h-5" />
+              <FilterIcon className="w-4 h-4 text-gray-700" />
+              <span className="text-sm font-medium">Filter Recipes</span>
             </button>
           </div>
           {filterPanel}
@@ -445,9 +558,21 @@ export const MealIdeas = () => {
                             </div>
                           ))}
                           <div
-                            className={`px-3 py-1 rounded-full text-xs font-medium ${getFilterColor(recipe.difficulty + " Effort")}`}
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${getFilterColor(recipe.cuisine)}`}
                           >
-                            {recipe.difficulty} Effort
+                            {recipe.cuisine}
+                          </div>
+                          {recipe.allergens.length > 0 && (
+                            <div
+                              className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700"
+                            >
+                              Allergens: {recipe.allergens.join(", ")}
+                            </div>
+                          )}
+                          <div
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${getFilterColor(`${recipe.steps.length} steps`)}`}
+                          >
+                            {recipe.steps.length} steps
                           </div>
                         </div>
                       </div>

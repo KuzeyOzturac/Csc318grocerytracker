@@ -14,6 +14,45 @@ export const Profile = () => {
     password: "",
     confirmPassword: "",
   });
+  
+  const [preferences, setPreferences] = useState({
+    dietary: user.preferences?.dietary || [],
+    cuisine: user.preferences?.cuisine || [],
+    allergens: user.preferences?.allergens || [],
+  });
+  
+  const dietaryOptions = [
+    "High Protein",
+    "Vegan",
+    "Vegetarian",
+    "Halal",
+    "Lactose-Free",
+    "Gluten-Free",
+  ];
+  
+  const cuisineOptions = [
+    "Italian",
+    "Indian",
+    "Mexican",
+    "Chinese",
+    "Thai",
+    "Japanese",
+    "Korean",
+    "Mediterranean",
+    "French",
+    "American",
+  ];
+  
+  const allergenOptions = ["Dairy", "Eggs", "Gluten", "Nuts"];
+
+  const togglePreference = (category: "dietary" | "cuisine" | "allergens", value: string) => {
+    setPreferences((prev) => ({
+      ...prev,
+      [category]: prev[category].includes(value)
+        ? prev[category].filter((v) => v !== value)
+        : [...prev[category], value],
+    }));
+  };
 
   const handleSignOut = () => {
     toast.success("Signed out successfully");
@@ -29,6 +68,14 @@ export const Profile = () => {
       toast.success("Account deleted");
       navigate("/auth");
     }
+  };
+
+  const handleSavePreferences = () => {
+    updateUser({
+      ...user,
+      preferences,
+    });
+    toast.success("Preferences saved!");
   };
 
   return (
@@ -174,6 +221,94 @@ export const Profile = () => {
           <p className="text-sm text-gray-600 text-center mt-4">
             <strong>WARNING:</strong> This action is irreversible!
           </p>
+        </div>
+
+        {/* Preferences Section */}
+        <div className="bg-white rounded-3xl border-2 border-gray-200 p-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            Cooking Preferences
+          </h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Select your food preferences to auto-filter recipes
+          </p>
+
+          <div className="space-y-6">
+            {/* Dietary Restrictions */}
+            <div>
+              <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600">
+                Dietary Restrictions
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {dietaryOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => togglePreference("dietary", option)}
+                    className={`px-3 py-2 rounded-full border-2 text-sm font-medium transition-all ${
+                      preferences.dietary.includes(option)
+                        ? "bg-green-500 text-white border-green-600"
+                        : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Cuisine Type */}
+            <div>
+              <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600">
+                Cuisine Type
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {cuisineOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => togglePreference("cuisine", option)}
+                    className={`px-3 py-2 rounded-full border-2 text-sm font-medium transition-all ${
+                      preferences.cuisine.includes(option)
+                        ? "bg-blue-500 text-white border-blue-600"
+                        : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Allergens to Avoid */}
+            <div>
+              <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600">
+                Allergens to Avoid
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {allergenOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => togglePreference("allergens", option)}
+                    className={`px-3 py-2 rounded-full border-2 text-sm font-medium transition-all ${
+                      preferences.allergens.includes(option)
+                        ? "bg-red-500 text-white border-red-600"
+                        : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSavePreferences}
+            className="w-full mt-8 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+          >
+            Save Preferences
+          </button>
         </div>
       </div>
     </div>
