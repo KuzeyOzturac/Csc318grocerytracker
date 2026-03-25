@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, Plus, Users, User, ArrowLeft, Boxes, ChevronDown } from "lucide-react";
+import { Search, Plus, Users, User, ArrowLeft, Boxes, ChevronDown, Filter } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams, useNavigate, Link } from "react-router";
 import { useApp } from "../context/AppContext";
@@ -9,6 +9,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
 } from "./ui/dropdown-menu";
 
 export const Inventory = () => {
@@ -17,10 +18,11 @@ export const Inventory = () => {
   const typeParam = searchParams.get("type");
   const [activeFilter, setActiveFilter] = useState<"all" | "personal" | "shared">("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<"name-asc" | "name-desc" | "expiry-asc" | "expiry-desc" | "quantity-asc" | "quantity-desc" | "lastBought-asc" | "lastBought-desc">("name-asc");
   const [expiryFilter, setExpiryFilter] = useState<"all" | "expiring-soon" | "expired">("all");
-  const [quantityFilter, setQuantityFilter] = useState<"all" | "low" | "out">("all");
-  const [sortBy, setSortBy] = useState<"name" | "expiry" | "quantity">("name");
-  const { inventory, shoppingList, user, roommates } = useApp();
+  const [stockFilter, setStockFilter] = useState<"all" | "low" | "out">("all");
+  const [showCookingBubble, setShowCookingBubble] = useState(true);
+  const { inventory, shoppingList, user, roommates, recipes } = useApp();
 
   const normalizeItemName = (name: string) => name.trim().toLowerCase();
   const neededShoppingItems = shoppingList.filter((item) => item.needed);
@@ -30,53 +32,10 @@ export const Inventory = () => {
       (value) => value.toLowerCase() === addedBy.toLowerCase(),
     );
 
-  const filteredItems = inventory.filter(item => {
-    const matchesFilter = 
-      activeFilter === "all" || 
-      (activeFilter === "shared" && item.isShared) || 
-      (activeFilter === "personal" && !item.isShared);
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesExpiry = (() => {
-      if (expiryFilter === "all") return true;
-      const daysUntilExpiry = getDaysUntilExpiry(item.expiryDate);
-      if (expiryFilter === "expired") return daysUntilExpiry < 0;
-      if (expiryFilter === "expiring-soon") return daysUntilExpiry >= 0 && daysUntilExpiry <= 6;
-      return true;
-    })();
-    
-    const matchesQuantity = (() => {
-      if (quantityFilter === "all") return true;
-      if (quantityFilter === "low") return item.status === "Low";
-      if (quantityFilter === "out") return item.status === "Out";
-      return true;
-    })();
-    
-    return matchesFilter && matchesSearch && matchesExpiry && matchesQuantity;
-  });
-
-  const sortedItems = [...filteredItems].sort((a, b) => {
-    switch (sortBy) {
-      case "name":
-        return a.name.localeCompare(b.name);
-      case "expiry":
-        const daysA = getDaysUntilExpiry(a.expiryDate);
-        const daysB = getDaysUntilExpiry(b.expiryDate);
-        return daysA - daysB;
-      case "quantity":
-        // Sort by amount (numeric value)
-        return b.amount - a.amount;
-      default:
-        return 0;
-    }
-  });
-
   const getDaysUntilExpiry = (expiryDate: string) => {
     try {
-      const expiry = new Date(expiryDate + 'T00:00:00'); // Ensure it's parsed as local time
-      // Use a fixed date for demo purposes to match the mock data
+      const expiry = new Date(expiryDate + 'T00:00:00');
       const today = new Date('2026-03-24T00:00:00');
-      
       const diffTime = expiry.getTime() - today.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       return diffDays;
@@ -90,6 +49,65 @@ export const Inventory = () => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
+
+  const filteredItems = inventory.filter(item => {
+    const matchesFilter = 
+      activeFilter === "all" || 
+      (activeFilter === "shared" && item.isShared) || 
+      (activeFilter === "personal" && !item.isShared);
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Apply expiry filter
+    const daysUntilExpiry = getDaysUntilExpiry(item.expiryDate);
+    const matchesExpiryFilter = (() => {
+      if (expiryFilter === "all") return true;
+      if (expiryFilter === "expiring-soon") return daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
+      if (expiryFilter === "expired") return daysUntilExpiry < 0;
+      return true;
+    })();
+    
+    // Apply stock filter
+    const matchesStockFilter = (() => {
+      if (stockFilter === "all") return true;
+      if (stockFilter === "low") return item.status === "Low";
+      if (stockFilter === "out") return item.status === "Out";
+      return true;
+    })();
+    
+    return matchesFilter && matchesSearch && matchesExpiryFilter && matchesStockFilter;
+  });
+
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    const isDescending = sortBy.includes("-desc");
+    const sortType = sortBy.replace("-asc", "").replace("-desc", "");
+    let comparison = 0;
+    
+    if (sortType === "name") {
+      comparison = a.name.localeCompare(b.name);
+    } else if (sortType === "expiry") {
+      comparison = getDaysUntilExpiry(a.expiryDate) - getDaysUntilExpiry(b.expiryDate);
+    } else if (sortType === "quantity") {
+      comparison = a.amount - b.amount;
+    } else if (sortType === "lastBought") {
+      const lastAddedOrder: Record<string, number> = {
+        "Just now": 0,
+        "Today": 1,
+        "Yesterday": 2,
+        "1": 3,
+        "2": 4,
+        "3": 5,
+        "4": 6,
+        "5": 7,
+        "week": 8,
+        "month": 9,
+      };
+      const aOrder = Object.entries(lastAddedOrder).find(([key]) => a.lastAdded.includes(key))?.[1] ?? 999;
+      const bOrder = Object.entries(lastAddedOrder).find(([key]) => b.lastAdded.includes(key))?.[1] ?? 999;
+      comparison = aOrder - bOrder;
+    }
+    
+    return isDescending ? -comparison : comparison;
+  });
 
   const getUpdaterInitials = (updatedBy: string) => {
     const householdMember = [user, ...roommates].find(
@@ -149,6 +167,34 @@ export const Inventory = () => {
         )}
 
         <h2 className="text-2xl font-bold text-gray-900">Grocery Inventory</h2>
+        
+        {/* Cooking Popup Bubble */}
+        {showCookingBubble && recipes && recipes.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            className="flex items-center justify-between gap-3 px-4 py-3 bg-gradient-to-r from-orange-100 to-yellow-100 border-2 border-orange-200 rounded-full"
+          >
+            <button
+              onClick={() => navigate("/meals")}
+              className="flex-1 text-left hover:opacity-80 transition-opacity"
+            >
+              <span className="text-sm font-semibold text-orange-900">
+                🧑‍🍳 get cooking! <span className="font-bold text-orange-600">{recipes.length}</span> recipes available
+              </span>
+            </button>
+            <button
+              onClick={() => setShowCookingBubble(false)}
+              className="flex-shrink-0 text-orange-600 hover:text-orange-800 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </motion.div>
+        )}
         
         {/* Filter Buttons */}
         <div className="flex gap-3">
@@ -221,66 +267,12 @@ export const Inventory = () => {
           </button>
         </div>
 
-        {/* Additional Filters */}
+        {/* Sorting and Filtering */}
         <div className="flex gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-full text-sm font-medium flex items-center justify-between hover:bg-gray-800 transition-colors">
-                {expiryFilter === "all" ? "All Expiry Dates" : 
-                 expiryFilter === "expiring-soon" ? "Expiring Soon (≤7 days)" : 
-                 "Expired"}
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-44">
-              <DropdownMenuRadioGroup
-                value={expiryFilter}
-                onValueChange={(value) => setExpiryFilter(value as typeof expiryFilter)}
-              >
-                <DropdownMenuRadioItem value="all">
-                  All Expiry Dates
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="expiring-soon">
-                  Expiring Soon (≤7 days)
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="expired">
-                  Expired
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-full text-sm font-medium flex items-center justify-between hover:bg-gray-800 transition-colors">
-                {quantityFilter === "all" ? "All Quantities" : 
-                 quantityFilter === "low" ? "Low Stock" : 
-                 "Out of Stock"}
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-44">
-              <DropdownMenuRadioGroup
-                value={quantityFilter}
-                onValueChange={(value) => setQuantityFilter(value as typeof quantityFilter)}
-              >
-                <DropdownMenuRadioItem value="all">
-                  All Quantities
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="low">
-                  Low Stock
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="out">
-                  Out of Stock
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-full text-sm font-medium flex items-center justify-between hover:bg-gray-800 transition-colors">
-                Sort by {sortBy === "name" ? "Name" : sortBy === "expiry" ? "Expiry" : "Quantity"}
+                Sort by {sortBy.includes("name") ? "Name" : sortBy.includes("expiry") ? "Expiry Date" : sortBy.includes("quantity") ? "Quantity" : "Last Bought"} {sortBy.includes("-desc") ? "↓" : "↑"}
                 <ChevronDown className="w-4 h-4" />
               </button>
             </DropdownMenuTrigger>
@@ -289,14 +281,69 @@ export const Inventory = () => {
                 value={sortBy}
                 onValueChange={(value) => setSortBy(value as typeof sortBy)}
               >
-                <DropdownMenuRadioItem value="name">
-                  Name
+                <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">Name</div>
+                <DropdownMenuRadioItem value="name-asc">Name (A-Z)</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="name-desc">Name (Z-A)</DropdownMenuRadioItem>
+                
+                <div className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase">Expiry Date</div>
+                <DropdownMenuRadioItem value="expiry-asc">Expiring Soon First</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="expiry-desc">Expiring Last</DropdownMenuRadioItem>
+                
+                <div className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase">Quantity</div>
+                <DropdownMenuRadioItem value="quantity-asc">Lowest First</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="quantity-desc">Highest First</DropdownMenuRadioItem>
+                
+                <div className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase">Last Bought</div>
+                <DropdownMenuRadioItem value="lastBought-asc">Oldest First</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="lastBought-desc">Most Recent First</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-full text-sm font-medium flex items-center justify-between hover:bg-gray-800 transition-colors">
+                <Filter className="w-4 h-4" />
+                Filter
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-56">
+              <div className="px-4 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Expiry Status
+              </div>
+              <DropdownMenuRadioGroup
+                value={expiryFilter}
+                onValueChange={(value) => setExpiryFilter(value as typeof expiryFilter)}
+              >
+                <DropdownMenuRadioItem value="all">
+                  All Items
                 </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="expiry">
-                  Expiry
+                <DropdownMenuRadioItem value="expiring-soon">
+                  Expiring Soon (≤7 days)
                 </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="quantity">
-                  Quantity
+                <DropdownMenuRadioItem value="expired">
+                  Expired
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+              
+              <div className="my-1 h-px bg-gray-200" />
+              
+              <div className="px-4 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Stock Status
+              </div>
+              <DropdownMenuRadioGroup
+                value={stockFilter}
+                onValueChange={(value) => setStockFilter(value as typeof stockFilter)}
+              >
+                <DropdownMenuRadioItem value="all">
+                  All Stock
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="low">
+                  Low Stock
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="out">
+                  Out of Stock
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
@@ -336,7 +383,7 @@ export const Inventory = () => {
                     <h4 className="font-bold text-gray-900 flex-1">{item.name}</h4>
                     {listBadge && (
                       <div
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full text-gray-400 bg-gray-100 flex-shrink-0`}
+                        className={`text-[8px] sm:text-[10px] font-bold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-gray-400 bg-gray-100 flex-shrink-0 whitespace-nowrap`}
                       >
                         {listBadge.label}
                       </div>

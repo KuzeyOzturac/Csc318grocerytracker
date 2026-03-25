@@ -36,7 +36,7 @@ export const ItemDetail = () => {
     );
   }
 
-  const purchases = item.purchaseHistory || [];
+  const purchases = (item.purchaseHistory || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const handleUpdateQuantity = (newAmount: number) => {
     if (newAmount < 0) return;
