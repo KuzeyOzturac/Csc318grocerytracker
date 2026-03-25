@@ -14,8 +14,10 @@ export const ShoppingList = () => {
     inventory,
     addPurchaseRecord,
     addFeedEntry,
-    purchaseHistory,
-    addPurchaseHistoryItem,
+    calculateEstimatedExpiry,
+    sessionPurchaseHistory,
+    addSessionPurchaseHistoryItem,
+    updateInventoryItem,
   } = useApp();
   const [view, setView] = useState<"list" | "confirm">("list");
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
@@ -76,34 +78,44 @@ export const ShoppingList = () => {
     const purchasedItems = [];
     const historyItems = [];
     const itemsToDelete = [];
+    const today = new Date().toISOString().split("T")[0];
     
     Array.from(checkedItems).forEach((id) => {
       const item = shoppingList.find((i) => i.id === id);
       if (!item) return;
       const invItem = inventory.find((inv) => inv.name === item.name);
       if (invItem) {
+        // Use shopping item's isShared status or default to inventory item's status
+        const isSharedStatus = item.isShared ?? invItem.isShared;
+        
+        // Update inventory item's isShared status to match the shopping item's selection
+        updateInventoryItem(invItem.id, { isShared: isSharedStatus });
+        
+        // Calculate estimated expiry based on category and purchase date
+        const estimatedExpiry = calculateEstimatedExpiry(today, invItem.category);
+        
         addPurchaseRecord(invItem.id, {
           buyerName: user.name,
           buyerInitials: user.initials,
           quantity: item.quantity,
-          date: new Date().toISOString().split("T")[0],
-          expiry: getItemExpiry(item.id),
+          date: today,
+          expiry: estimatedExpiry,
           action: "bought",
         });
         purchasedItems.push({
           name: invItem.name,
           quantity: item.quantity,
-          isShared: invItem.isShared,
+          isShared: isSharedStatus,
         });
         
-        // Add to purchase history
+        // Add to purchase history using shopping item's shared/personal status
         historyItems.push({
           id: item.id,
           name: item.name,
           quantity: item.quantity,
           buyerName: user.name,
           purchaseDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-          isShared: invItem.isShared,
+          isShared: isSharedStatus,
         });
         
         // Mark for deletion from shopping list
@@ -135,7 +147,7 @@ export const ShoppingList = () => {
       });
       
       // Add to purchase history (prepend new items for most recent first)
-      historyItems.forEach((item) => addPurchaseHistoryItem(item));
+      addSessionPurchaseHistoryItem(historyItems);
       
       // Delete checked items from shopping list
       itemsToDelete.forEach((id) => deleteShoppingItem(id));
@@ -170,7 +182,7 @@ export const ShoppingList = () => {
           </div>
 
           <div className="space-y-3">
-            {checkedItemsList.map((item) => {
+            {checkedItemsList.map((item, itemIndex) => {
               if (!item) return null;
 
               return (
@@ -193,49 +205,6 @@ export const ShoppingList = () => {
                     <div className="flex-1">
                       <h4 className="font-bold text-gray-900">{item.name}</h4>
                     </div>
-                    <button
-                      className="px-4 py-2 bg-blue-500 text-white rounded-full text-sm font-medium hover:bg-blue-600 transition-colors"
-                      onClick={() => {
-                        const invItem = inventory.find(
-                          (inv) => inv.name === item.name,
-                        );
-                        if (invItem) {
-                          addPurchaseRecord(invItem.id, {
-                            buyerName: user.name,
-                            buyerInitials: user.initials,
-                            quantity: item.quantity,
-                            date: new Date().toISOString().split("T")[0],
-                            expiry: getItemExpiry(item.id),
-                            action: "bought",
-                          });
-                          addFeedEntry({
-                            id: Date.now().toString(),
-                            userId: user.id,
-                            userName: user.name,
-                            userInitials: user.initials,
-                            type: invItem.isShared ? "shared" : "personal",
-                            items: [
-                              {
-                                name: invItem.name,
-                                quantity: item.quantity,
-                                isShared: invItem.isShared,
-                              },
-                            ],
-                            timestamp: new Date().toLocaleString("en-US", {
-                              weekday: "long",
-                              month: "long",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }),
-                            date: new Date().toISOString().split("T")[0],
-                          });
-                          toast.success(`${item.name} added to inventory!`);
-                        }
-                      }}
-                    >
-                      Add to Inventory
-                    </button>
                   </div>
 
                   <div className="space-y-2 text-sm">
@@ -340,7 +309,7 @@ export const ShoppingList = () => {
             {sortedNeededItems.map((item) => {
               const isChecked = checkedItems.has(item.id);
               const isShared =
-                item.category === "Dairy" || item.name === "Milk";
+                item.isShared ?? (item.category === "Dairy" || item.name === "Milk");
 
               return (
                 <div
@@ -416,12 +385,33 @@ export const ShoppingList = () => {
                             )}
                           </div>
                         </div>
-                        <button
-                          onClick={() => deleteShoppingItem(item.id)}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() =>
+                              updateShoppingItem(item.id, {
+                                isShared: !isShared,
+                              })
+                            }
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1 ${
+                              isShared
+                                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                            }`}
+                          >
+                            {isShared ? (
+                              <Users className="w-3 h-3" />
+                            ) : (
+                              <User className="w-3 h-3" />
+                            )}
+                            {isShared ? "Shared" : "Personal"}
+                          </button>
+                          <button
+                            onClick={() => deleteShoppingItem(item.id)}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
 
                       {isShared && (
@@ -435,9 +425,18 @@ export const ShoppingList = () => {
                         </div>
                       )}
 
-                      <div className="text-sm text-gray-500 mb-2">
-                        3 cartons currently in Inventory
-                      </div>
+                      {(() => {
+                        const inventoryItem = inventory.find(
+                          (invItem) => invItem.name.toLowerCase() === item.name.toLowerCase()
+                        );
+                        return (
+                          <div className="text-sm text-gray-500 mb-2">
+                            {inventoryItem
+                              ? `${inventoryItem.amount} ${inventoryItem.unit} currently in Inventory`
+                              : "Not currently in Inventory"}
+                          </div>
+                        );
+                      })()}
 
                       <button
                         onClick={() => togglePurchased(item.id)}
@@ -578,12 +577,12 @@ export const ShoppingList = () => {
                 transition={{ duration: 0.2 }}
                 className="space-y-3 overflow-hidden"
               >
-                {purchaseHistory.length === 0 ? (
+                {sessionPurchaseHistory.length === 0 ? (
                   <div className="bg-gray-50 rounded-2xl p-4 border border-gray-300 text-center text-gray-500">
                     <p className="text-sm">No previous purchases yet</p>
                   </div>
                 ) : (
-                  purchaseHistory.map((item, index) => (
+                  sessionPurchaseHistory.map((item, index) => (
                     <div
                       key={`${item.id}-${index}`}
                       className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"

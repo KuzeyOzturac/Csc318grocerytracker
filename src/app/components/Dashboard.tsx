@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useApp } from "../context/AppContext";
-import { ChevronDown, Users } from "lucide-react";
+import { ChevronDown, Users, User } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 import {
   DropdownMenuCheckboxItem,
@@ -389,7 +389,7 @@ export const Dashboard = () => {
                               className="w-full text-left hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-200"
                             >
                               <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-green-100">
-                                <span className="text-green-600 text-xs">S</span>
+                                <Users className="w-4 h-4 text-green-600" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <span className="text-sm font-medium text-gray-900">
@@ -415,7 +415,7 @@ export const Dashboard = () => {
                               className="w-full text-left hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-200"
                             >
                               <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100">
-                                <span className="text-blue-600 text-xs">P</span>
+                                <User className="w-4 h-4 text-blue-600" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <span className="text-sm font-medium text-gray-900">
@@ -441,9 +441,11 @@ export const Dashboard = () => {
                           <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
                             item.isShared ? "bg-green-100" : "bg-blue-100"
                           }`}>
-                            <span className={item.isShared ? "text-green-600 text-xs" : "text-blue-600 text-xs"}>
-                              {item.isShared ? "S" : "P"}
-                            </span>
+                            {item.isShared ? (
+                              <Users className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <User className="w-4 h-4 text-blue-600" />
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <span className="text-sm font-medium text-gray-900">

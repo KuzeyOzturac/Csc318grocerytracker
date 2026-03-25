@@ -31,6 +31,7 @@ export interface ShoppingItem {
   addedBy: string;
   needed: boolean;
   quantity: string;
+  isShared?: boolean;
 }
 
 export interface PurchaseHistoryItem {
@@ -101,8 +102,27 @@ interface FeedEntry {
 }
 
 interface AppContextType {
-  // ...existing code...
+  user: User;
+  inventory: InventoryItem[];
+  shoppingList: ShoppingItem[];
+  recipes: Recipe[];
+  roommates: Roommate[];
+  feed: FeedEntry[];
+  purchaseHistory: PurchaseHistoryItem[];
+  addInventoryItem: (item: Omit<InventoryItem, "id">) => void;
+  updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
+  deleteInventoryItem: (id: string) => void;
+  addShoppingItem: (item: Omit<ShoppingItem, "id">) => void;
+  updateShoppingItem: (id: string, updates: Partial<ShoppingItem>) => void;
+  deleteShoppingItem: (id: string) => void;
+  addRoommate: (roommate: Omit<Roommate, "id">) => void;
+  removeRoommate: (id: string) => void;
+  updateUser: (updates: Partial<User>) => void;
+  addPurchaseRecord: (itemId: string, record: PurchaseRecord, addAmount?: number) => void;
+  addFeedEntry: (entry: FeedEntry) => void;
   useInventoryItem: (itemId: string, usedAmount?: number, eventId?: string, recipeId?: string, recipeName?: string) => void;
+  addPurchaseHistoryItem: (item: Omit<PurchaseHistoryItem, "id">) => void;
+  calculateEstimatedExpiry: (purchaseDate: string, category: string) => string;
 }
 
 // ...existing code...
@@ -571,6 +591,59 @@ const mockFeed: FeedEntry[] = [
 
 const normalizeItemName = (name: string) => name.trim().toLowerCase();
 
+/**
+ * Calculates estimated expiry date based on food category and purchase date
+ * Uses food science data for typical shelf lives
+ */
+const calculateEstimatedExpiry = (
+  purchaseDate: string,
+  category: string,
+): string => {
+  const date = new Date(purchaseDate);
+  
+  // Define shelf life in days by category
+  const shelfLifeByCategory: Record<string, number> = {
+    // Dairy - short shelf life
+    "Dairy": 14,
+    
+    // Proteins
+    "Meat": 3,
+    "Fish": 2,
+    
+    // Vegetables - variable
+    "Vegetables": 7,
+    "Produce": 7,
+    
+    // Fruits
+    "Fruits": 7,
+    
+    // Bakery
+    "Bakery": 3,
+    
+    // Pantry - long shelf life
+    "Pantry": 180,
+    
+    // Default fallback
+    "General": 14,
+  };
+  
+  // Get shelf life, with fallback to default
+  let shelfLife = shelfLifeByCategory[category];
+  if (!shelfLife) {
+    // Try to find a matching category by checking if it's contained in category name
+    const matchedCategory = Object.keys(shelfLifeByCategory).find(
+      key => category.toLowerCase().includes(key.toLowerCase())
+    );
+    shelfLife = matchedCategory ? shelfLifeByCategory[matchedCategory] : 14;
+  }
+  
+  // Add shelf life to purchase date
+  date.setDate(date.getDate() + shelfLife);
+  
+  // Return as ISO date string
+  return date.toISOString().split('T')[0];
+};
+
 const buildInventoryWithSeededHistory = (
   items: InventoryItem[],
   feed: FeedEntry[],
@@ -737,6 +810,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     useState<ShoppingItem[]>(mockShoppingList);
   const [recipes] = useState<Recipe[]>(mockRecipes);
   const [roommates, setRoommates] = useState<Roommate[]>(mockRoommates);
+  const [sessionPurchaseHistory, setSessionPurchaseHistory] = useState<PurchaseHistoryItem[]>([]);
 
   const addInventoryItem = (item: Omit<InventoryItem, "id">) => {
     const normalizedName = item.name.trim().toLowerCase();
@@ -898,6 +972,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setPurchaseHistory((prev) => [newItem, ...prev]);
   };
 
+  const addSessionPurchaseHistoryItem = (items: PurchaseHistoryItem[]) => {
+    // Prepend to maintain most recent first
+    setSessionPurchaseHistory((prev) => [...items, ...prev]);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -908,6 +987,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         roommates,
         feed,
         purchaseHistory,
+        sessionPurchaseHistory,
         addInventoryItem,
         updateInventoryItem,
         deleteInventoryItem,
@@ -921,6 +1001,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addFeedEntry,
         useInventoryItem,
         addPurchaseHistoryItem,
+        addSessionPurchaseHistoryItem,
+        calculateEstimatedExpiry,
       }}
     >
       {children}
