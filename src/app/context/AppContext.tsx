@@ -262,32 +262,7 @@ const mockInventory: InventoryItem[] = [
   },
 ];
 
-const mockShoppingList: ShoppingItem[] = [
-  {
-    id: "1",
-    name: "Eggs",
-    category: "Dairy",
-    addedBy: "Vibhas",
-    needed: true,
-    quantity: "12 eggs",
-  },
-  {
-    id: "2",
-    name: "Bread",
-    category: "Bakery",
-    addedBy: "Vibhas",
-    needed: true,
-    quantity: "1 loaf",
-  },
-  {
-    id: "3",
-    name: "Basmati Rice",
-    category: "Pantry",
-    addedBy: "Kuzey",
-    needed: true,
-    quantity: "1 kg",
-  },
-];
+const mockShoppingList: ShoppingItem[] = [];
 
 const mockRecipes: Recipe[] = [
   {
